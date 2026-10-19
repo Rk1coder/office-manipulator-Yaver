@@ -1,0 +1,83 @@
+name: office-trial
+
+services:
+  office-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: office_trial
+      POSTGRES_USER: office_trial
+      POSTGRES_PASSWORD: ${OFFICE_DB_PASSWORD:?Run scripts/office-init first}
+    volumes:
+      - office-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U office_trial -d office_trial"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  office-docs:
+    image: onlyoffice/documentserver:10.0.0@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${OFFICE_JWT_SECRET:?Run scripts/office-init first}
+      JWT_HEADER: Authorization
+      WOPI_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    ports:
+      - "127.0.0.1:8082:80"
+    volumes:
+      - office-docs-data:/var/www/onlyoffice/Data
+      - office-docs-lib:/var/lib/onlyoffice
+      - office-docs-db:/var/lib/postgresql
+      - office-docs-logs:/var/log/onlyoffice
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS http://localhost/healthcheck | grep -qx true"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  office-app:
+    image: office-trial-app:local
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_DATASOURCE_URL: jdbc:postgresql://office-db:5432/office_trial
+      SPRING_DATASOURCE_USERNAME: office_trial
+      SPRING_DATASOURCE_PASSWORD: ${OFFICE_DB_PASSWORD:?Run scripts/office-init first}
+      STORAGE_BASE_PATH: /data/files
+      OFFICE_ENABLED: "true"
+      OFFICE_PUBLIC_URL: http://localhost:8082
+      OFFICE_INTERNAL_URL: http://office-docs
+      OFFICE_APP_PUBLIC_URL: http://localhost:8090
+      OFFICE_APP_INTERNAL_URL: http://office-app:8080
+      OFFICE_JWT_SECRET: ${OFFICE_JWT_SECRET:?Run scripts/office-init first}
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - office-filedata:/data/files
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080/api/budget"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    depends_on:
+      office-db:
+        condition: service_healthy
+      office-docs:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  office-pgdata:
+  office-filedata:
+  office-docs-data:
+  office-docs-lib:
+  office-docs-db:
+  office-docs-logs:

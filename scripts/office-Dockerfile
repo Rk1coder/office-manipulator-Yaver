@@ -1,0 +1,6 @@
+FROM office-trial-runtime:local
+COPY target/office-manipulator-1.0.0-SNAPSHOT.jar /app/app.jar
+RUN mkdir -p /data/files && chown -R appuser:appgroup /data/files
+USER appuser
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

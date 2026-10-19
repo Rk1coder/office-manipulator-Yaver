@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+if [[ ! -f target/office-manipulator-1.0.0-SNAPSHOT.jar ]]; then
+  printf '%s\n' 'Package the application first: mvn package' >&2
+  exit 1
+fi
+# Build the existing trusted Java/Node runtime without rerunning Maven in Docker.
+docker build --target runtime -t office-trial-runtime:local .
+docker build -f scripts/office-Dockerfile -t office-trial-app:local .

@@ -1,0 +1,5 @@
+# Overlay for scripts/office-native. Keep the existing project and named volumes.
+services:
+  office-db:
+    ports:
+      - "127.0.0.1:55434:5432"

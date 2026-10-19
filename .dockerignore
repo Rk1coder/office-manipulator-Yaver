@@ -1,0 +1,9 @@
+.git
+.idea
+.env
+.env.*
+.office.local.env
+.local
+node_modules
+target/*
+!target/office-manipulator-1.0.0-SNAPSHOT.jar

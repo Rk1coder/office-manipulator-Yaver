@@ -1,2 +1,9 @@
+target/
 .env
-*.tar
+.office.local.env
+.local/
+*.jar
+*.class
+.idea/
+*.iml
+/data/

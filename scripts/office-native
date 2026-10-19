@@ -1,0 +1,412 @@
+#!/usr/bin/env python3
+"""Host Java backend, with unchanged Docker Docs/DB and mandatory bwrap sandbox."""
+import fcntl
+import glob
+import ipaddress
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import time
+import urllib.request
+import uuid
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = ROOT / '.local/office'
+OLD_PREFIX = '/data/files/'
+ACTIVE = "status NOT IN ('DONE','FAILED','CANCELLED','PLAN_READY')"
+
+
+class LauncherError(Exception):
+    pass
+
+
+def parse_env(path):
+    """Parse literal, single-line dotenv values; never execute or expand input."""
+    result = {}
+    if not path.exists():
+        return result
+    for number, raw in enumerate(path.read_text().splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        match = re.fullmatch(r'(?:export\s+)?([A-Za-z_][A-Za-z_0-9]*)\s*=\s*(.*)', line)
+        if not match:
+            raise LauncherError(f'Invalid dotenv syntax in {path.name}, line {number}; values hidden.')
+        key, value = match.groups()
+        if value.startswith(('"', "'")):
+            quote = value[0]
+            end = value.find(quote, 1)
+            if end < 0 or (value[end + 1:].strip() and not value[end + 1:].lstrip().startswith('#')):
+                raise LauncherError(f'Unsupported dotenv quoting in {path.name}, line {number}; values hidden.')
+            value = value[1:end]
+        else:
+            value = re.split(r'\s+#', value, maxsplit=1)[0].rstrip()
+        if '\x00' in value:
+            raise LauncherError(f'Invalid dotenv value in {path.name}, line {number}; values hidden.')
+        result[key] = value
+    return result
+
+
+def private_dir(path):
+    if path.is_symlink():
+        raise LauncherError('Private state directory must not be a symbolic link.')
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if path.stat().st_uid != os.getuid():
+        raise LauncherError('Private state directory belongs to a different user.')
+    path.chmod(0o700)
+
+
+def write_json(path, value):
+    temporary = path.with_suffix('.tmp')
+    with temporary.open('w') as output:
+        os.chmod(temporary, 0o600)
+        json.dump(value, output)
+        output.flush()
+        os.fsync(output.fileno())
+    temporary.replace(path)
+
+
+def run(command, *, env=None, input=None, output=None, timeout=60):
+    result = subprocess.run(command, cwd=ROOT, env=env, input=input,
+                            stdout=output or subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=output is None, timeout=timeout)
+    if result.returncode:
+        # Child stderr can contain secrets, SQL, or environment values.
+        raise LauncherError(f'{Path(command[0]).name} failed (exit {result.returncode}); output withheld to protect secrets.')
+    return result.stdout
+
+
+def compose(*arguments, env=None, input=None, output=None, timeout=120):
+    return run(['docker', 'compose', '--env-file', str(ROOT / '.office.local.env'),
+                '-f', str(ROOT / 'compose.office.yml'), '-f', str(ROOT / 'compose.office-host.yml'),
+                *arguments], env=env, input=input, output=output, timeout=timeout)
+
+
+def sql(query, env):
+    return compose('exec', '-T', 'office-db', 'psql', '-X', '-qAt',
+                   '-v', 'ON_ERROR_STOP=1', '-U', 'office_trial', '-d', 'office_trial',
+                   env=env, input=query)
+
+
+def active_jobs(env):
+    # A fresh DB has no application schema until the first backend startup.
+    exists = sql("SELECT to_regclass('public.jobs') IS NOT NULL;", env).strip()
+    return int(sql('SELECT count(*) FROM jobs WHERE ' + ACTIVE + ';', env)) if exists == 't' else 0
+
+
+def process_identity(pid):
+    try:
+        proc = Path('/proc') / str(pid)
+        raw = (proc / 'stat').read_text()
+        fields = raw[raw.rfind(')') + 2:].split()
+        if fields[0] == 'Z':
+            return None
+        return {'pid': pid, 'start': fields[19],
+                'boot': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                'exe': str((proc / 'exe').resolve(strict=True)),
+                'cmdline': (proc / 'cmdline').read_bytes().hex(),
+                'uid': proc.stat().st_uid}
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        return None
+
+
+def managed_process():
+    path = STATE / 'process.json'
+    if not path.exists():
+        return None
+    try:
+        saved = json.loads(path.read_text())
+        actual = process_identity(saved['pid'])
+        return saved if actual == saved and saved['uid'] == os.getuid() else None
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def stop_native():
+    saved = managed_process()
+    if not saved:
+        print('No matching managed native backend is running.')
+        return
+    # pidfd binds the signal to this process, even if its numeric PID is reused.
+    descriptor = os.pidfd_open(saved['pid'])
+    try:
+        if process_identity(saved['pid']) != saved:
+            raise LauncherError('Backend identity changed; no signal sent.')
+        signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+        for _ in range(120):
+            if process_identity(saved['pid']) != saved:
+                (STATE / 'process.json').unlink(missing_ok=True)
+                print('Native backend stopped; Docs and PostgreSQL remain running.')
+                return
+            time.sleep(0.25)
+        raise LauncherError('Backend did not stop within 30 seconds; no forced kill was sent.')
+    finally:
+        os.close(descriptor)
+
+
+def executable(candidates, major, name):
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate).expanduser()
+        if not path.is_file() or not os.access(path, os.X_OK):
+            continue
+        result = subprocess.run([str(path), '-version' if name == 'Java' else '--version'],
+                                capture_output=True, text=True, timeout=10)
+        version = result.stdout + result.stderr
+        pattern = r'version "' + str(major) + r'[.\"]' if name == 'Java' else r'^v' + str(major) + r'\.'
+        if result.returncode == 0 and re.search(pattern, version):
+            return path.resolve()
+    raise LauncherError(f'{name} {major} is required; set OFFICE_{name.upper()}_BINARY to its absolute path.')
+
+
+def dependencies(env):
+    java = executable([env.get('OFFICE_JAVA_BINARY'),
+        str(Path(env.get('JAVA_HOME', '/nonexistent')) / 'bin/java'), shutil.which('java'),
+        *glob.glob('/usr/lib/jvm/*/bin/java'), *glob.glob(str(Path.home() / '.jdks/*/bin/java'))], 21, 'Java')
+    node = executable([env.get('OFFICE_NODE_BINARY'), shutil.which('node'),
+        *glob.glob(str(Path.home() / '.cache/JetBrains/*/acp-agents/.runtimes/node/24*/bin/node'))], 24, 'Node')
+    bwrap, prlimit = shutil.which('bwrap'), shutil.which('prlimit')
+    if not bwrap or not prlimit:
+        raise LauncherError('Install bubblewrap and prlimit; the sandbox is mandatory.')
+    modules = (ROOT / 'node_modules').resolve()
+    for module in ('docx', 'pptxgenjs', 'exceljs', 'pdf-lib'):
+        if not (modules / module / 'package.json').is_file():
+            raise LauncherError('Node dependencies missing; run npm ci before starting.')
+    command = [prlimit, '--as=2147483648', '--cpu=10', '--nofile=128', '--core=0', '--', bwrap,
+               '--unshare-all', '--unshare-user', '--unshare-net', '--unshare-pid',
+               '--die-with-parent', '--new-session', '--cap-drop', 'ALL', '--clearenv']
+    for directory in ('/lib', '/lib64', '/usr/lib'):
+        if Path(directory).exists():
+            command += ['--ro-bind', directory, directory]
+    command += ['--ro-bind', str(node), '/runtime/node', '--proc', '/proc', '--dev', '/dev',
+                '--tmpfs', '/work', '--remount-ro', '/', '--chdir', '/work', '--',
+                '/runtime/node', '--max-old-space-size=256', '--disable-wasm-trap-handler',
+                '--permission', '-e', 'if(process.versions.node.split(".")[0]!=="24")process.exit(1)']
+    run(command, env={}, timeout=20)
+    return [str(java), '-Dnode.binary=' + str(node), '-Dnode.modules.path=' + str(modules),
+            '-Dnode.sandbox.binary=' + str(Path(bwrap).resolve()),
+            '-Dnode.prlimit.binary=' + str(Path(prlimit).resolve())]
+
+
+def mapped_path(value, destination):
+    if not isinstance(value, str) or not value.startswith(OLD_PREFIX):
+        return value
+    tail = value[len(OLD_PREFIX):]
+    parts = tail.split('/')
+    if not tail or any(part in ('', '.', '..') for part in parts) or '\x00' in tail or '\\' in tail:
+        raise LauncherError('Unsafe legacy storage path; migration stopped without database changes.')
+    return str(destination / PurePosixPath(tail))
+
+
+def mapped_images(value, destination):
+    if isinstance(value, str):
+        return mapped_path(value, destination)
+    if isinstance(value, list):
+        return [mapped_images(item, destination) for item in value]
+    if isinstance(value, dict):
+        return {key: mapped_images(item, destination) for key, item in value.items()}
+    return value
+
+
+def validate_tree(directory):
+    for path in [directory, *directory.rglob('*')]:
+        mode = path.lstat().st_mode
+        if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+            raise LauncherError('Legacy storage contains a link or special file; migration stopped.')
+        path.chmod(0o700 if stat.S_ISDIR(mode) else 0o600)
+
+
+def literal(value):
+    return 'NULL' if value is None else "'" + value.replace("'", "''") + "'"
+
+
+def migrate(env):
+    marker = STATE / 'migration.json'
+    destination = STATE / 'files'
+    record = json.loads(marker.read_text()) if marker.exists() else None
+    if record and record.get('phase') == 'complete':
+        if record.get('destination') != str(destination) or not destination.is_dir():
+            raise LauncherError('Migrated storage moved or disappeared; restore it before starting.')
+        return
+    if not record:
+        backup = STATE / ('backup-' + time.strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:8])
+        private_dir(backup)
+        record = {'phase': 'pending', 'destination': str(destination), 'backup': str(backup)}
+        write_json(marker, record)
+    backup = Path(record['backup'])
+    if backup.parent != STATE or record['destination'] != str(destination):
+        raise LauncherError('Migration state does not match this workspace.')
+    private_dir(backup)
+    if record['phase'] == 'pending':
+        snapshot = backup / 'office-trial.dump'
+        with snapshot.open('wb') as output:
+            os.chmod(snapshot, 0o600)
+            compose('exec', '-T', 'office-db', 'pg_dump', '-U', 'office_trial', '-d', 'office_trial',
+                    '--format=custom', env=env, output=output, timeout=180)
+            output.flush()
+            os.fsync(output.fileno())
+        if snapshot.stat().st_size == 0:
+            raise LauncherError('Database backup was empty; migration stopped.')
+        schema_exists = sql("SELECT to_regclass('public.jobs') IS NOT NULL;", env).strip() == 't'
+        rows = json.loads(sql("SELECT coalesce(json_agg(t),'[]') FROM (SELECT id,file_path,image_paths_json,(status='DONE' AND expires_at>now() AND file_path IS NOT NULL) AS file_required FROM jobs) t;", env)) if schema_exists else []
+        record['schema_exists'] = schema_exists
+        write_json(backup / 'original-paths.json', rows)
+        # Validate all persisted paths before copying or changing the database.
+        for row in rows:
+            mapped_path(row['file_path'], destination)
+            if row['image_paths_json']:
+                mapped_images(json.loads(row['image_paths_json']), destination)
+        source = compose('ps', '-aq', 'office-app', env=env).strip()
+        staging = STATE / 'files-copy'
+        if staging.exists():
+            shutil.rmtree(staging)
+        private_dir(staging)
+        if source:
+            run(['docker', 'cp', source + ':/data/files/.', str(staging)], env=env, timeout=180)
+        elif rows:
+            raise LauncherError('Legacy app container missing; cannot safely locate its document volume.')
+        validate_tree(staging)
+        if destination.exists():
+            raise LauncherError('Unrecorded destination already exists; migration stopped to preserve it.')
+        # Record copy completion before rename so interruption can resume safely.
+        record['phase'] = 'copied'
+        write_json(marker, record)
+    if record['phase'] == 'copied':
+        staging = STATE / 'files-copy'
+        if staging.exists() and not destination.exists():
+            staging.rename(destination)
+        if not destination.is_dir():
+            raise LauncherError('Migration copy missing; restore the private backup before retrying.')
+        validate_tree(destination)
+        rows = json.loads((backup / 'original-paths.json').read_text())
+        queries = ['BEGIN;', "SET LOCAL standard_conforming_strings=on;", 'LOCK TABLE jobs IN ACCESS EXCLUSIVE MODE;',
+                   "DO $$ BEGIN IF EXISTS(SELECT 1 FROM jobs WHERE " + ACTIVE + ") THEN RAISE EXCEPTION 'Active jobs'; END IF; END $$;"]
+        for row in rows:
+            job_id = str(uuid.UUID(row['id']))
+            new_path = mapped_path(row['file_path'], destination)
+            if row.get('file_required') and new_path and new_path.startswith(str(destination) + '/') and not Path(new_path).is_file():
+                raise LauncherError('An unexpired completed document is missing from the copied files; database paths were not changed.')
+            old_images = row['image_paths_json']
+            new_images = old_images
+            if old_images:
+                images = json.loads(old_images)
+                mapped = mapped_images(images, destination)
+                if mapped != images:
+                    new_images = json.dumps(mapped, ensure_ascii=False)
+            if new_path == row['file_path'] and new_images == old_images:
+                continue
+            # Idempotent after a crash between DB commit and local marker update.
+            queries += [f"UPDATE jobs SET file_path={literal(new_path)}, image_paths_json={literal(new_images)} WHERE id='{job_id}' AND file_path IS NOT DISTINCT FROM {literal(row['file_path'])} AND image_paths_json IS NOT DISTINCT FROM {literal(old_images)};"]
+            queries += [f"SELECT 1 / CASE WHEN EXISTS(SELECT 1 FROM jobs WHERE id='{job_id}' AND file_path IS NOT DISTINCT FROM {literal(new_path)} AND image_paths_json IS NOT DISTINCT FROM {literal(new_images)}) THEN 1 ELSE 0 END;"]
+        queries += ['COMMIT;']
+        if record.get('schema_exists', True):
+            sql('\n'.join(queries), env)
+        record['phase'] = 'complete'
+        write_json(marker, record)
+        print('Trial documents and database paths migrated; originals and private backup retained.')
+
+
+def up():
+    env = {**parse_env(ROOT / '.env'), **os.environ}
+    secrets = parse_env(ROOT / '.office.local.env')
+    for key in ('OFFICE_DB_PASSWORD', 'OFFICE_JWT_SECRET'):
+        if not secrets.get(key):
+            raise LauncherError('Trial secrets missing; run scripts/office-init first.')
+    env.update(secrets)
+    if not env.get('ANTHROPIC_API_KEY'):
+        raise LauncherError('ANTHROPIC_API_KEY must be available in .env or the inherited environment.')
+    jar = ROOT / 'target/office-manipulator-1.0.0-SNAPSHOT.jar'
+    if not jar.is_file():
+        raise LauncherError('Packaged application missing; run mvn package first.')
+    command = dependencies(env)
+    print('Java 21, Node 24, Node modules and host namespace sandbox preflight passed.')
+    # Check before the overlay can recreate PostgreSQL to publish its loopback port.
+    if compose('ps', '--status', 'running', '-q', 'office-db', env=env).strip() and active_jobs(env):
+        raise LauncherError('Active generation jobs exist. Wait for them to finish; no services were changed and no job will be retried.')
+    compose('up', '-d', '--wait', '--wait-timeout', '360', 'office-db', 'office-docs', env=env, timeout=420)
+    gateway = run(['docker', 'network', 'inspect', 'office-trial_default',
+                   '--format', '{{(index .IPAM.Config 0).Gateway}}'], env=env).strip()
+    if ipaddress.ip_address(gateway).version != 4:
+        raise LauncherError('Expected an IPv4 gateway for the trial Docker network.')
+    if active_jobs(env):
+        raise LauncherError('Active generation jobs exist. Wait for them to finish; no backend was stopped and no job will be retried.')
+    if managed_process():
+        stop_native()
+    compose('stop', 'office-app', env=env)
+    if active_jobs(env):
+        raise LauncherError('A generation job started during shutdown. Backend remains stopped; inspect its status before restarting. No provider request was retried.')
+    migrate(env)
+    env.update(SERVER_ADDRESS='127.0.0.1', SERVER_PORT='8090',
+               SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:55434/office_trial',
+               SPRING_DATASOURCE_USERNAME='office_trial', SPRING_DATASOURCE_PASSWORD=secrets['OFFICE_DB_PASSWORD'],
+               STORAGE_BASE_PATH=str(STATE / 'files'), OFFICE_ENABLED='true', SANDBOX_PREFLIGHT='true',
+               OFFICE_PUBLIC_URL='http://localhost:8082', OFFICE_INTERNAL_URL='http://127.0.0.1:8082',
+               OFFICE_APP_PUBLIC_URL='http://localhost:8090', OFFICE_APP_INTERNAL_URL=f'http://{gateway}:8091',
+               OFFICE_TRANSPORT_ENABLED='true', OFFICE_TRANSPORT_ADDRESS=gateway, OFFICE_TRANSPORT_PORT='8091')
+    command += ['-jar', str(jar)]
+    log_path = STATE / 'backend.log'
+    with log_path.open('ab') as log:
+        os.chmod(log_path, 0o600)
+        offset = log.tell()
+        child = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+                                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    identity = process_identity(child.pid)
+    if not identity:
+        raise LauncherError('Native backend exited immediately; inspect the private backend log.')
+    write_json(STATE / 'process.json', identity)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    for _ in range(120):
+        if child.poll() is not None:
+            raise LauncherError('Native backend exited during startup; inspect .local/office/backend.log privately.')
+        with log_path.open('rb') as log:
+            log.seek(offset)
+            ready = b'Document generation sandbox ready' in log.read()
+        if ready:
+            try:
+                with opener.open('http://127.0.0.1:8090/api/budget', timeout=2) as response:
+                    if response.status == 200:
+                        print('Native trial ready: http://localhost:8090 (Docs: http://localhost:8082).')
+                        return
+            except OSError:
+                pass
+        time.sleep(1)
+    stop_native()
+    raise LauncherError('Native startup timed out; inspect .local/office/backend.log privately.')
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ('up', 'stop', 'status'):
+        print('Usage: scripts/office-native up|stop|status', file=sys.stderr)
+        return 2
+    os.umask(0o077)
+    private_dir(ROOT / '.local')
+    private_dir(STATE)
+    with (STATE / 'launcher.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise LauncherError('Another native launcher operation is in progress.')
+        if sys.argv[1] == 'up':
+            up()
+        elif sys.argv[1] == 'stop':
+            stop_native()
+        else:
+            process = managed_process()
+            print(f"Native backend running (PID {process['pid']}): http://localhost:8090" if process else 'Native backend is not running under this launcher.')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (LauncherError, OSError, ValueError, subprocess.SubprocessError) as error:
+        # Do not dump environment, captured child output, or SQL values.
+        print(str(error) if isinstance(error, LauncherError) else 'Native launcher failed; check dependencies and private state. Details withheld to protect secrets.', file=sys.stderr)
+        sys.exit(1)

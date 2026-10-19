@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+scripts/office-init
+scripts/office-build
+scripts/office-compose up -d --wait --wait-timeout 360
+printf '%s\n' 'Trial app: http://localhost:8090' 'ONLYOFFICE: http://localhost:8082'

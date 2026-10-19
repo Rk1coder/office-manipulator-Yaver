@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN files_cleaned_at TIMESTAMPTZ;
