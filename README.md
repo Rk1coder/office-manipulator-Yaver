@@ -2,6 +2,12 @@
 
 Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çalıştırılması için hazırlanmış teslim paketidir. Dosya yükleme/indirme, belge önizleme, biçim dönüştürme (ör. Word → PDF) ve ONLYOFFICE ile tarayıcı içi belge düzenleme **tamamen yerel** çalışır — internet gerekmez. AI (Claude sohbeti, AI ile belge üretimi, Yaver'in yazım önerileri) isteğe bağlıdır ve yalnızca internet varsa kullanılabilir; API anahtarı girilmediği sürece bu özellikler kapalı kalır, geri kalan her şey etkilenmeden çalışır.
 
+## Ekran görüntüleri
+
+| Ana sayfa | AI ayarları |
+|---|---|
+| ![Yaver ana sayfa](docs/screenshots/anasayfa.webp) | ![Yaver AI ayarları](docs/screenshots/ayarlar.gif) |
+
 ## Gereksinimler
 
 Hedef bilgisayarda yalnızca şunlar kurulu olmalı:
