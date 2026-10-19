@@ -6,7 +6,7 @@ Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çal�
 
 | Ana sayfa | AI ayarları |
 |---|---|
-| ![Yaver ana sayfa](docs/screenshots/anasayfa.webp) | ![Yaver AI ayarları](docs/screenshots/ayarlar.gif) |
+| ![Yaver ana sayfa](docs/screenshots/anasayfa.gif) | ![Yaver AI ayarları](docs/screenshots/ayarlar.gif) |
 
 ## Gereksinimler
 
