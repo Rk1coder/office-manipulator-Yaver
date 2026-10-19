@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: officemanipulator
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d officemanipulator"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  onlyoffice:
+    image: onlyoffice/documentserver:10.0.0@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${OFFICE_JWT_SECRET:?Set OFFICE_JWT_SECRET in .env}
+      JWT_HEADER: Authorization
+      WOPI_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    ports:
+      - "127.0.0.1:8082:80"
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+      - onlyoffice-lib:/var/lib/onlyoffice
+      - onlyoffice-db:/var/lib/postgresql
+      - onlyoffice-logs:/var/log/onlyoffice
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/healthcheck | grep -qx true"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  app:
+    build: .
+    # Explicit name so `docker save`/`docker load` and the delivery scripts can rely on a fixed
+    # image tag regardless of COMPOSE_PROJECT_NAME (which varies between dev, CI, and delivery).
+    image: office-manipulator-app:latest
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/officemanipulator
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      STORAGE_BASE_PATH: /data/files
+      BUDGET_LIMIT_USD: ${BUDGET_LIMIT_USD:-20.00}
+      FILE_TTL_HOURS: ${FILE_TTL_HOURS:-72}
+      # Air-gapped default: AI/chat features stay disabled when this is blank.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Optional: self-hosted/proxy endpoint for the Anthropic Messages API. Blank uses the
+      # official https://api.anthropic.com (see ClaudeClientProvider/ClaudeKeyVerifier).
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      CLAUDE_INPUT_PRICE_PER_MILLION: "${CLAUDE_INPUT_PRICE_PER_MILLION:-}"
+      CLAUDE_OUTPUT_PRICE_PER_MILLION: "${CLAUDE_OUTPUT_PRICE_PER_MILLION:-}"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
+      GEMINI_IMAGE_MODEL: ${GEMINI_IMAGE_MODEL:-gemini-3.1-flash-image-preview}
+      GEMINI_INPUT_PRICE_PER_MILLION: ${GEMINI_INPUT_PRICE_PER_MILLION:-0}
+      GEMINI_OUTPUT_PRICE_PER_MILLION: ${GEMINI_OUTPUT_PRICE_PER_MILLION:-0}
+      OFFICE_ENABLED: "true"
+      OFFICE_JWT_SECRET: ${OFFICE_JWT_SECRET:?Set OFFICE_JWT_SECRET in .env}
+      OFFICE_PUBLIC_URL: ${OFFICE_PUBLIC_URL:-http://localhost:8082}
+      OFFICE_INTERNAL_URL: http://onlyoffice
+      OFFICE_APP_PUBLIC_URL: ${OFFICE_APP_PUBLIC_URL:-http://localhost:8081}
+      OFFICE_APP_INTERNAL_URL: http://app:8080
+    volumes:
+      - filedata:/data/files
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      onlyoffice:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  filedata:
+  onlyoffice-data:
+  onlyoffice-lib:
+  onlyoffice-db:
+  onlyoffice-logs:
