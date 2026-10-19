@@ -8,6 +8,18 @@ Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çal�
 |---|---|
 | ![Yaver ana sayfa](docs/screenshots/anasayfa.gif) | ![Yaver AI ayarları](docs/screenshots/ayarlar.gif) |
 
+| PPTX oluşturma | Plan onaylama |
+|---|---|
+| ![PPTX oluşturma](docs/screenshots/pptx-olusturma.webp) | ![Plan onaylama](docs/screenshots/plan-onaylama.webp) |
+
+| PDF çıktısı (ONLYOFFICE) | CSV oluşturma |
+|---|---|
+| ![PDF çıktısı](docs/screenshots/pdf-ciktisi.webp) | ![CSV oluşturma](docs/screenshots/csv-olusturma.webp) |
+
+| DOCX düzenleme (ONLYOFFICE) |
+|---|
+| ![DOCX düzenleme](docs/screenshots/docx-duzenleme.webp) |
+
 ## Gereksinimler
 
 Hedef bilgisayarda yalnızca şunlar kurulu olmalı:
