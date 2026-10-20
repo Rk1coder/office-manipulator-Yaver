@@ -7,7 +7,7 @@ import com.officemanipulator.api.dto.JobResponse;
 import com.officemanipulator.domain.Job;
 import com.officemanipulator.domain.JobStatus;
 import java.util.List;
-import com.officemanipulator.claude.ClaudeOrchestrator;
+import com.officemanipulator.claude.AgentOrchestrator;
 import com.officemanipulator.event.JobStatusEvent;
 import com.officemanipulator.service.BudgetService;
 import com.officemanipulator.service.DocumentEditService;
@@ -36,7 +36,7 @@ public class JobController {
     private final DocumentEditService documentEditService;
     private final PlanningService planningService;
     private final ObjectMapper objectMapper;
-    private final ClaudeOrchestrator orchestrator;
+    private final AgentOrchestrator orchestrator;
 
     private final Map<UUID, java.util.Set<reactor.core.publisher.FluxSink<Map<String,String>>>> subscribers = new java.util.HashMap<>();
 
@@ -47,7 +47,7 @@ public class JobController {
 
     public JobController(JobService jobService, BudgetService budgetService,
                          DocumentEditService documentEditService, PlanningService planningService,
-                         ObjectMapper objectMapper, ClaudeOrchestrator orchestrator) {
+                         ObjectMapper objectMapper, AgentOrchestrator orchestrator) {
         this.jobService          = jobService;
         this.budgetService       = budgetService;
         this.documentEditService = documentEditService;
