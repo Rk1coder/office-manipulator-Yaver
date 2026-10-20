@@ -28,7 +28,7 @@ import java.util.Map;
  * System prompt lives in SystemPrompts; tool routing lives in ToolDispatcher.
  */
 @Service
-public class ClaudeOrchestrator {
+public class ClaudeOrchestrator implements AgentOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ClaudeOrchestrator.class);
 

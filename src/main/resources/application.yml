@@ -24,6 +24,11 @@ spring:
 app:
   sandbox:
     preflight: ${SANDBOX_PREFLIGHT:false}
+  agent:
+    provider: ${AGENT_PROVIDER:legacy}
+    deep-agents:
+      base-url: ${DEEP_AGENTS_BASE_URL:http://localhost:8000}
+      internal-token: ${DEEP_AGENTS_INTERNAL_TOKEN:}
   office:
     transport:
       enabled: ${OFFICE_TRANSPORT_ENABLED:false}

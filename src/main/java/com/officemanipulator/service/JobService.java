@@ -1,6 +1,6 @@
 package com.officemanipulator.service;
 
-import com.officemanipulator.claude.ClaudeOrchestrator;
+import com.officemanipulator.claude.AgentOrchestrator;
 import com.officemanipulator.claude.dto.OrchestratorResult;
 import com.officemanipulator.domain.*;
 import com.officemanipulator.event.JobStatusEvent;
@@ -32,7 +32,7 @@ public class JobService {
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
 
     private final JobRepository jobRepository;
-    private final ClaudeOrchestrator orchestrator;
+    private final AgentOrchestrator orchestrator;
     private final FileValidator validator;
     private final FileStorageService storageService;
     private final BudgetService budgetService;
@@ -46,7 +46,7 @@ public class JobService {
     @org.springframework.beans.factory.annotation.Autowired
     public JobService(
             JobRepository jobRepository,
-            ClaudeOrchestrator orchestrator,
+            AgentOrchestrator orchestrator,
             FileValidator validator,
             FileStorageService storageService,
             BudgetService budgetService,
@@ -66,7 +66,7 @@ public class JobService {
 
     public JobService(
             JobRepository jobRepository,
-            ClaudeOrchestrator orchestrator,
+            AgentOrchestrator orchestrator,
             FileValidator validator,
             FileStorageService storageService,
             BudgetService budgetService,
