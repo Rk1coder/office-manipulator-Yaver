@@ -80,7 +80,9 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
 
             JsonNode root = objectMapper.readTree(response);
             if (!root.path("success").asBoolean(false)) {
-                throw new IllegalStateException("Deep agent service failed: " + root.path("message").asText());
+                String message = root.path("message").asText();
+                throw new IllegalStateException(
+                        "Deep agent service failed [" + classifyFailure(message) + "]: " + message);
             }
             int inputTokens = root.path("inputTokens").asInt(0);
             int outputTokens = root.path("outputTokens").asInt(0);
@@ -89,6 +91,20 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
         } catch (Exception e) {
             throw new IllegalStateException("Deep agent orchestration failed for job " + job.getId() + ": " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Coarse classification of a Python-side failure message, matched against the fixed
+     * strings deep-agent-service/app/agent.py returns for each failure mode (timeout,
+     * recursion-limit, no tool call, or a plain script error) — lets Phase 4's benchmark
+     * tell these apart instead of lumping every failure into one bucket.
+     */
+    private static String classifyFailure(String message) {
+        if (message == null) return "unknown";
+        if (message.contains("exceeded the maximum of") && message.contains("turns")) return "max_retries_exceeded";
+        if (message.contains("exceeded the") && message.contains("timeout")) return "timeout";
+        if (message.contains("did not call create_word_document")) return "no_tool_call";
+        return "script_error";
     }
 
     private BigDecimal cost(long inputTokens, long outputTokens) {
