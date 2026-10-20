@@ -57,7 +57,9 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
         // which the Python side only ever receives as plain HTTP/1.1 FastAPI/uvicorn.
         var factory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(20)).build());
-        factory.setReadTimeout(Duration.ofMinutes(5));
+        // Kept comfortably above deep-agent-service's own INVOKE_TIMEOUT_SECONDS (360s, see
+        // app/agent.py) so the Python side reports its own clean timeout error first.
+        factory.setReadTimeout(Duration.ofMinutes(7));
         this.restClient = RestClient.builder().requestFactory(factory).baseUrl(baseUrl).build();
     }
 
