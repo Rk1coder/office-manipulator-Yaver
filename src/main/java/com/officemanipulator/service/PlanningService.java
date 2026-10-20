@@ -2,7 +2,7 @@ package com.officemanipulator.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officemanipulator.claude.ClaudeOrchestrator;
+import com.officemanipulator.claude.AgentOrchestrator;
 import com.officemanipulator.claude.dto.OrchestratorDesignResult;
 import com.officemanipulator.claude.dto.OrchestratorPlanResult;
 import com.officemanipulator.domain.Job;
@@ -40,7 +40,7 @@ public class PlanningService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.officemanipulator.storage.FileStorageService storage;
     private final JobRepository jobRepository;
-    private final ClaudeOrchestrator orchestrator;
+    private final AgentOrchestrator orchestrator;
     private final JobService jobService;
     private final GeminiImageService geminiImageService;
     private final ApplicationEventPublisher eventPublisher;
@@ -49,7 +49,7 @@ public class PlanningService {
 
     public PlanningService(
             JobRepository jobRepository,
-            ClaudeOrchestrator orchestrator,
+            AgentOrchestrator orchestrator,
             JobService jobService,
             GeminiImageService geminiImageService,
             ApplicationEventPublisher eventPublisher,

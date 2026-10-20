@@ -1,6 +1,6 @@
 package com.officemanipulator.service;
 
-import com.officemanipulator.claude.ClaudeOrchestrator;
+import com.officemanipulator.claude.AgentOrchestrator;
 import com.officemanipulator.claude.dto.OrchestratorResult;
 import com.officemanipulator.domain.*;
 import com.officemanipulator.event.JobStatusEvent;
@@ -31,7 +31,7 @@ public class DocumentEditService {
     private static final Logger log = LoggerFactory.getLogger(DocumentEditService.class);
 
     private final JobRepository jobRepository;
-    private final ClaudeOrchestrator orchestrator;
+    private final AgentOrchestrator orchestrator;
     private final PreviewService previewService;
     private final FileValidator validator;
     private final FileStorageService storageService;
@@ -48,7 +48,7 @@ public class DocumentEditService {
     @org.springframework.beans.factory.annotation.Autowired
     public DocumentEditService(
             JobRepository jobRepository,
-            ClaudeOrchestrator orchestrator,
+            AgentOrchestrator orchestrator,
             PreviewService previewService,
             FileValidator validator,
             FileStorageService storageService,
@@ -74,7 +74,7 @@ public class DocumentEditService {
 
     public DocumentEditService(
             JobRepository jobRepository,
-            ClaudeOrchestrator orchestrator,
+            AgentOrchestrator orchestrator,
             PreviewService previewService,
             FileValidator validator,
             FileStorageService storageService,

@@ -2,7 +2,7 @@ package com.officemanipulator.office;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officemanipulator.claude.ClaudeOrchestrator;
+import com.officemanipulator.claude.AgentOrchestrator;
 import com.officemanipulator.config.AiAvailability;
 import com.officemanipulator.domain.Job;
 import com.officemanipulator.service.JobService;
@@ -22,11 +22,11 @@ public class OfficeController {
     private final OfficeService office;
     private final OfficeTokens tokens;
     private final JobService jobs;
-    private final ClaudeOrchestrator ai;
+    private final AgentOrchestrator ai;
     private final ObjectMapper json;
     private final AiAvailability aiAvailability;
     private final ConversionSourceRegistry conversionSource;
-    public OfficeController(OfficeService office,OfficeTokens tokens,JobService jobs,ClaudeOrchestrator ai,ObjectMapper json,AiAvailability aiAvailability,ConversionSourceRegistry conversionSource) {
+    public OfficeController(OfficeService office,OfficeTokens tokens,JobService jobs,AgentOrchestrator ai,ObjectMapper json,AiAvailability aiAvailability,ConversionSourceRegistry conversionSource) {
         this.office=office;this.tokens=tokens;this.jobs=jobs;this.ai=ai;this.json=json;this.aiAvailability=aiAvailability;this.conversionSource=conversionSource;
     }
     @PostMapping(value="/api/office/import",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
