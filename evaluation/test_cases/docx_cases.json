@@ -1,0 +1,22 @@
+[
+  {
+    "id": "plain-prose",
+    "request": "Hibrit çalışma modelinin çalışan verimliliğine etkisi hakkında kısa, tek sayfalık, düz anlatım paragraflarından oluşan bir bilgi notu yaz. Madde işareti veya tablo kullanma."
+  },
+  {
+    "id": "bullet-heavy",
+    "request": "Yeni bir proje yönetim aracına geçiş için bir kontrol listesi hazırla. İçerik ağırlıklı olarak madde işaretli listelerden oluşsun: hazırlık, geçiş, geçiş sonrası olmak üzere üç bölüm halinde."
+  },
+  {
+    "id": "comparison-table",
+    "request": "İki bulut depolama sağlayıcısını (A ve B) fiyat, güvenlik ve performans açısından karşılaştıran bir tablo içeren kısa bir değerlendirme notu yaz. Karşılaştırma mutlaka bir tablo olarak sunulsun."
+  },
+  {
+    "id": "multi-section-report",
+    "request": "Bir şirketin 2026 üçüncü çeyrek müşteri memnuniyeti anketi sonuçlarını özetleyen, giriş, bulgular, öneriler olmak üzere üç numaralı bölümden oluşan orta uzunlukta bir rapor yaz."
+  },
+  {
+    "id": "numbered-formatting",
+    "request": "Yeni çalışanlar için bir işe başlama (onboarding) süreci rehberi yaz. Adımlar numaralı liste olarak, her ana adımın altında 2-3 alt madde ile birlikte sunulsun."
+  }
+]
