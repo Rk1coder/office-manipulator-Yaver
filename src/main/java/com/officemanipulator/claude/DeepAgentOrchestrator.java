@@ -1,20 +1,35 @@
 package com.officemanipulator.claude;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.officemanipulator.claude.dto.OrchestratorDesignResult;
 import com.officemanipulator.claude.dto.OrchestratorDocumentEditResult;
 import com.officemanipulator.claude.dto.OrchestratorPlanResult;
 import com.officemanipulator.claude.dto.OrchestratorResult;
+import com.officemanipulator.config.ModelPricing;
 import com.officemanipulator.domain.Job;
+import com.officemanipulator.domain.OutputFormat;
+import com.officemanipulator.storage.FileStorageService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.net.http.HttpClient;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
 
 /**
- * Experimental stub for the Deep Agents migration (branch
- * experiment/deep-agents-migration). Not yet implemented — this class exists
- * solely to prove that {@code app.agent.provider: deep-agents} wiring and
- * routing work end-to-end via
- * {@link com.officemanipulator.config.AgentOrchestratorConfiguration}.
- * No HTTP calls, no real agent logic yet; that lands in a later phase of the
- * migration together with the Python Deep Agents service itself.
+ * Experimental Deep Agents orchestrator (see experiment/deep-agents-migration). Calls the
+ * standalone Python Deep Agents service (deep-agent-service/) over HTTP; the Python side
+ * writes a docx-npm script and calls back into this app's AgentToolsController to actually
+ * generate/validate the file, reusing the same WordGenerator sandbox the legacy path uses.
+ * Only DOCX generation (run()) is implemented so far — a PoC of one capability, not a full
+ * replacement. All other AgentOrchestrator methods remain unimplemented for this phase.
  */
 @Service
 public class DeepAgentOrchestrator implements AgentOrchestrator {
@@ -23,9 +38,63 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
             "DeepAgentOrchestrator is a routing stub only - not yet implemented. "
                     + "Set app.agent.provider=legacy to use ClaudeOrchestrator.";
 
+    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
+    private final FileStorageService storageService;
+    private final ModelPricing pricing;
+
+    public DeepAgentOrchestrator(
+            ObjectMapper objectMapper,
+            FileStorageService storageService,
+            ModelPricing pricing,
+            @Value("${app.agent.deep-agents.base-url}") String baseUrl
+    ) {
+        this.objectMapper = objectMapper;
+        this.storageService = storageService;
+        this.pricing = pricing;
+        var factory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build());
+        factory.setReadTimeout(Duration.ofMinutes(5));
+        this.restClient = RestClient.builder().requestFactory(factory).baseUrl(baseUrl).build();
+    }
+
     @Override
     public OrchestratorResult run(Job job) throws Exception {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        if (job.getFormat() != OutputFormat.DOCX) {
+            throw new UnsupportedOperationException(
+                    "DeepAgentOrchestrator currently supports DOCX only (PoC scope). "
+                            + "Set app.agent.provider=legacy for other formats.");
+        }
+        Map<String, Object> body = Map.of(
+                "jobId", job.getId().toString(),
+                "request", job.getRequest(),
+                "sourceText", job.getSourceText() == null ? "" : job.getSourceText()
+        );
+        try {
+            String response = restClient.post()
+                    .uri("/run")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(response);
+            if (!root.path("success").asBoolean(false)) {
+                throw new IllegalStateException("Deep agent service failed: " + root.path("message").asText());
+            }
+            int inputTokens = root.path("inputTokens").asInt(0);
+            int outputTokens = root.path("outputTokens").asInt(0);
+            Path outputPath = storageService.resolveOutputPath(job.getId(), OutputFormat.DOCX);
+            return new OrchestratorResult(outputPath, inputTokens, outputTokens, cost(inputTokens, outputTokens));
+        } catch (Exception e) {
+            throw new IllegalStateException("Deep agent orchestration failed for job " + job.getId() + ": " + e.getMessage(), e);
+        }
+    }
+
+    private BigDecimal cost(long inputTokens, long outputTokens) {
+        return pricing.input().multiply(BigDecimal.valueOf(inputTokens))
+                .add(pricing.output().multiply(BigDecimal.valueOf(outputTokens)))
+                .divide(BigDecimal.valueOf(1_000_000), 6, RoundingMode.HALF_UP);
     }
 
     @Override
