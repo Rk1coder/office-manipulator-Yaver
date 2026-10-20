@@ -1,3 +1,5 @@
+import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 
@@ -33,11 +35,16 @@ register_harness_profile(
 RECURSION_LIMIT = 8
 
 # Wall-clock cap on the whole agent.invoke() call, kept below the Java-side RestClient
-# read timeout (5 minutes) so this service reports its own timeout error back to Java
-# cleanly instead of Java's HTTP client timing out the connection first.
-INVOKE_TIMEOUT_SECONDS = 240
+# read timeout (7 minutes) so this service reports its own timeout error back to Java
+# cleanly instead of Java's HTTP client timing out the connection first. Raised from an
+# initial 240s guess after a real benchmark run (evaluation/results/) showed a legitimate
+# multi-section document being cut off here while still making progress -- the legacy
+# agent has no equivalent cap and took up to 341s on its own slowest case in the same
+# run, so 240s was an unfairly tight, unvalidated number for Deep Agents specifically.
+INVOKE_TIMEOUT_SECONDS = 360
 
 _executor = ThreadPoolExecutor(max_workers=4)
+log = logging.getLogger("deep-agent-service.agent")
 
 
 @dataclass
@@ -85,6 +92,7 @@ def run_docx_job(job_id: str, request: str, source_text: str) -> DocxRunResult:
     )
 
     user_message = _build_user_message(request, source_text)
+    started = time.monotonic()
     future = _executor.submit(
         agent.invoke,
         {"messages": [{"role": "user", "content": user_message}]},
@@ -93,6 +101,9 @@ def run_docx_job(job_id: str, request: str, source_text: str) -> DocxRunResult:
     try:
         result = future.result(timeout=INVOKE_TIMEOUT_SECONDS)
     except FutureTimeoutError:
+        log.warning("job %s timed out after %.1fs (limit %ss) -- can't tell from here whether it "
+                    "was stuck or just slow; the thread keeps running detached in the background.",
+                    job_id, time.monotonic() - started, INVOKE_TIMEOUT_SECONDS)
         return DocxRunResult(
             success=False,
             message=f"Deep agent run exceeded the {INVOKE_TIMEOUT_SECONDS}s timeout.",
@@ -100,6 +111,8 @@ def run_docx_job(job_id: str, request: str, source_text: str) -> DocxRunResult:
             output_tokens=0,
         )
     except GraphRecursionError:
+        log.warning("job %s hit the %s-turn recursion limit after %.1fs.",
+                    job_id, RECURSION_LIMIT, time.monotonic() - started)
         return DocxRunResult(
             success=False,
             message=f"Deep agent exceeded the maximum of {RECURSION_LIMIT} turns without a successful result.",
@@ -107,8 +120,11 @@ def run_docx_job(job_id: str, request: str, source_text: str) -> DocxRunResult:
             output_tokens=0,
         )
 
+    elapsed = time.monotonic() - started
     messages = result.get("messages", [])
     input_tokens, output_tokens, last_tool_message = _extract_usage_and_last_tool_message(messages)
+    log.info("job %s finished in %.1fs across %d messages (input_tokens=%d, output_tokens=%d).",
+              job_id, elapsed, len(messages), input_tokens, output_tokens)
 
     if last_tool_message is None:
         return DocxRunResult(
