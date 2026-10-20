@@ -52,8 +52,11 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.pricing = pricing;
+        // HTTP/1.1 forced: the JDK client's default HTTP/2 upgrade attempt confuses uvicorn's
+        // h11 parser (it logs "Unsupported upgrade request" and the request body never arrives),
+        // which the Python side only ever receives as plain HTTP/1.1 FastAPI/uvicorn.
         var factory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build());
+                HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(20)).build());
         factory.setReadTimeout(Duration.ofMinutes(5));
         this.restClient = RestClient.builder().requestFactory(factory).baseUrl(baseUrl).build();
     }
