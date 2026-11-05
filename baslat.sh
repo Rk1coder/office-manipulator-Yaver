@@ -20,6 +20,12 @@ if grep -qE '^(DB_PASSWORD|OFFICE_JWT_SECRET)=(changeme)?$' .env; then
   exit 1
 fi
 
+if ! grep -qE '^YAVER_API_KEYS=.{24,}' .env; then
+  echo '.env içinde YAVER_API_KEYS boş ya da 24 karakterden kısa. Diğer uygulamaların API ile bağlanacağı anahtarı üretin:' >&2
+  echo '  openssl rand -hex 32   # YAVER_API_KEYS için' >&2
+  exit 1
+fi
+
 for f in app.tar postgres.tar onlyoffice.tar; do
   [[ -f "$f" ]] || { echo "Gerekli imaj dosyası eksik: $f" >&2; exit 1; }
 done
@@ -65,5 +71,5 @@ fi
 
 docker compose --env-file .env -f docker-compose.yml ps
 echo
-echo 'Uygulama hazır: http://localhost:8081'
+echo 'API hazır: http://localhost:8081  (dokümantasyon: http://localhost:8081/docs)'
 echo 'Durdurmak için: bash durdur.sh'

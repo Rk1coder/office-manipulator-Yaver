@@ -21,7 +21,21 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /docs
+  paths-to-match: /api/**, /health
+
 app:
+  # API service mode: comma-separated keys (>= 24 chars each). Blank = local tool (localhost only, no key).
+  api:
+    keys: ${YAVER_API_KEYS:}
+    # Browser apps on these exact origins may call the API (CORS), e.g. https://portal.example.com
+    allowed-origins: ${YAVER_CORS_ORIGINS:}
+  web-ui:
+    enabled: ${WEB_UI_ENABLED:false}
   sandbox:
     preflight: ${SANDBOX_PREFLIGHT:false}
   agent:
