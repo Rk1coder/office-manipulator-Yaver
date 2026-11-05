@@ -331,6 +331,7 @@ body{margin:0}
 .yv-tabs-list{display:flex;flex-direction:column;gap:2px;width:176px;flex:none;align-self:flex-start;border-left:1px solid var(--ln)}
 .yv-tab{display:flex;align-items:center;gap:10px;justify-content:flex-start;margin-left:-1px;border:0;border-left:2px solid transparent;background:transparent;color:var(--mu);font:inherit;font-size:13px;font-weight:500;text-align:left;padding:8px 12px;cursor:pointer;border-radius:0 6px 6px 0;transition:color .15s,background .15s,border-color .15s;white-space:nowrap}
 .yv-tab:hover{color:var(--tx);background:var(--sb)}
+.yv-tab-wrap{white-space:normal;line-height:1.35}
 .yv-tab[data-active="true"]{color:var(--tx);border-left-color:var(--ac)}
 .yv-tab:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
 .yv-tab-panel{flex:1;min-width:0;min-height:0;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column;gap:16px;animation:yvin .2s ease-out both}
@@ -340,6 +341,7 @@ body{margin:0}
   .yv-tabs-list{scrollbar-width:none}.yv-tabs-list::-webkit-scrollbar{display:none}
   .yv-tab{margin:0 0 -1px;border-left:0;border-bottom:2px solid transparent;border-radius:6px 6px 0 0}
   .yv-tab[data-active="true"]{border-bottom-color:var(--ac)}
+  .yv-tab-wrap{white-space:nowrap}
 }
 @media (prefers-reduced-motion:reduce){.yv-theme-icon,.yv-tab-panel{animation:none}.yv-gear svg{transition:none}}
 /* Sidebar info cards: a dismissible stack; the "screenshots" fan out on hover. */
@@ -358,15 +360,12 @@ body{margin:0}
 .yv-info-eyebrow{margin:0;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:var(--ac)}
 .yv-info-title{margin:0;font-size:13.5px;font-weight:650;color:var(--tx)}
 .yv-info-desc{margin:0;font-size:12px;line-height:1.45;color:var(--mu);text-wrap:pretty}
-.yv-info-media{position:relative;height:58px;margin:8px 0 6px;overflow:hidden;border-radius:7px 7px 0 0;transition:height .35s cubic-bezier(.2,.8,.2,1)}
-.yv-info-card:hover .yv-info-media,.yv-info-card:focus-within .yv-info-media{height:112px;overflow:visible}
-.yv-info-shot{position:absolute;left:6px;right:6px;top:0;height:82px;box-sizing:border-box;border:1px solid var(--ln2);border-radius:7px;background:var(--sb);padding:6px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;z-index:calc(3 - var(--i));transform-origin:50% 100%;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:transform .45s cubic-bezier(.2,.9,.25,1.15);transition-delay:calc(var(--i) * 35ms)}
-.yv-info-shot::after{content:"";position:absolute;left:8px;right:8px;bottom:8px;height:26px;opacity:.7;background:linear-gradient(var(--ac),var(--ac)) 0 0/30% 5px no-repeat,linear-gradient(var(--ln2),var(--ln2)) 0 11px/85% 4px no-repeat,linear-gradient(var(--ln2),var(--ln2)) 0 20px/62% 4px no-repeat}
-/* Hover: the stacked shots fan out like a hand of cards, spilling over the card edges. */
-.yv-info-card:hover .yv-info-shot,.yv-info-card:focus-within .yv-info-shot{transform:translate(calc(16px - var(--i) * 20px),calc(14px - var(--i) * 3px)) rotate(calc(5deg - var(--i) * 7deg)) scale(1.08)}
-.yv-info-shot-bar{display:flex;gap:3px}.yv-info-shot-bar i{width:5px;height:5px;border-radius:50%;background:var(--ln2)}
-.yv-info-shot b{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.yv-info-shot span:last-child{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yv-info-media{position:relative;height:66px;margin:8px 0 6px;overflow:hidden;border-radius:7px 7px 0 0;transition:height .35s cubic-bezier(.2,.8,.2,1)}
+.yv-info-card:hover .yv-info-media,.yv-info-card:focus-within .yv-info-media{height:146px;overflow:visible}
+.yv-info-shot{position:absolute;left:6px;right:6px;top:0;height:112px;box-sizing:border-box;border:1px solid var(--ln2);border-radius:7px;background:var(--sb);overflow:hidden;z-index:calc(3 - var(--i));transform-origin:50% 100%;box-shadow:0 6px 18px rgba(0,0,0,.22);transition:transform .45s cubic-bezier(.2,.9,.25,1.15);transition-delay:calc(var(--i) * 35ms)}
+.yv-info-shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:left top}
+/* Hover: the stacked screenshots fan out like a hand of cards, spilling over the card edges. */
+.yv-info-card:hover .yv-info-shot,.yv-info-card:focus-within .yv-info-shot{transform:translate(calc(16px - var(--i) * 20px),calc(26px - var(--i) * 3px)) rotate(calc(5deg - var(--i) * 7deg)) scale(1.08)}
 .yv-info-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
 .yv-info-foot button{border:0;background:transparent;font:inherit;font-size:12px;cursor:pointer;padding:3px 0;color:var(--mu)}
 .yv-info-foot button:hover{color:var(--tx)}
@@ -476,7 +475,7 @@ body{margin:0}
           <p class="yv-info-desc">{{ infoTop.desc }}</p>
           <div class="yv-info-media" aria-hidden="true">
             <sc-for list="{{ infoTop.media }}" as="m" hint-placeholder-count="3">
-              <div class="yv-info-shot" style="--i:{{ m.i }}"><span class="yv-info-shot-bar"><i></i><i></i><i></i></span><b>{{ m.head }}</b><span>{{ m.line }}</span></div>
+              <div class="yv-info-shot" style="--i:{{ m.i }}"><img src="{{ m.src }}" alt="" decoding="async"></div>
             </sc-for>
           </div>
           <button type="button" class="yv-info-cta" sc-camel-on-click="{{ infoGo }}"><span aria-hidden="true">→</span><span>{{ infoTop.go }}</span></button>
@@ -1287,7 +1286,7 @@ body{margin:0}
       <div class="yv-settings-body">
         <div role="tablist" aria-orientation="{{ settingsTabOrientation }}" aria-label="{{ infoGuideLabel }}" class="yv-tabs-list">
           <sc-for list="{{ infoTabs }}" as="it" hint-placeholder-count="3">
-            <button type="button" role="tab" aria-selected="{{ it.active }}" data-active="{{ it.active }}" class="yv-tab" sc-camel-on-click="{{ it.select }}"><span>{{ it.title }}</span></button>
+            <button type="button" role="tab" aria-selected="{{ it.active }}" data-active="{{ it.active }}" class="yv-tab yv-tab-wrap" sc-camel-on-click="{{ it.select }}"><span>{{ it.title }}</span></button>
           </sc-for>
         </div>
         <div role="tabpanel" class="yv-tab-panel" data-key="{{ infoPanel.id }}">
@@ -1765,7 +1764,6 @@ class Component extends DCLogic {
   infoCards() {
     const host = typeof location !== 'undefined' ? location.origin : 'http://localhost:8081';
     const tr = this.state.lang !== 'en';
-    const media = rows => rows.map(([head, line], i) => ({ head, line, i }));
     const curl = {
       create: "curl -X POST " + host + "/api/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\", \"format\": \"DOCX\"}'\n\n→ {\"jobId\": \"…\", \"status\": \"PENDING\", \"format\": \"DOCX\"}",
       watch: "curl " + host + "/api/jobs/$JOB_ID\ncurl -N " + host + "/api/jobs/$JOB_ID/events",
@@ -1775,7 +1773,6 @@ class Component extends DCLogic {
     return tr ? [
       { id: 'what', eyebrow: 'TANIŞMA', title: 'Yaver nedir?', go: 'Başlamak için önce bir yapay zekâ anahtarı ekle', action: 'settings',
         desc: 'Ne istediğini kendi cümlelerinle yazarsın; Yaver bunu Word, PowerPoint, PDF, Excel veya CSV dosyasına dönüştürür.',
-        media: media([['Sen yazarsın', 'ihtiyacını sade bir dille anlat'], ['Yaver hazırlar', 'içeriği planlar, dosyayı oluşturur'], ['Sen kullanırsın', 'önizle, düzenle, indir']]),
         sections: [
           { h: 'Ne işe yarar?', p: 'Rapor, sunum, tablo, özet, mektup gibi belgeleri sıfırdan hazırlamak ya da elindeki bir metni veya dosyayı başka bir biçime dönüştürmek için kullanılır. Belge yazmayı bilmen gerekmez; ne istediğini anlatman yeterlidir.' },
           { h: 'Nasıl çalışır?', p: 'Yaver arka planda bir yapay zekâ modeli kullanır. İsteğini anlar, içeriği bölümlere ayırarak planlar, dosyayı üretir ve sonucu açıp kontrol eder. Sen yalnızca planı onaylar ve sonucu kullanırsın.' },
@@ -1783,7 +1780,6 @@ class Component extends DCLogic {
         ] },
       { id: 'key', eyebrow: 'ADIM 1 · HAZIRLIK', title: 'API anahtarı nedir, nasıl eklenir?', go: 'Ayarlar → AI sekmesini aç ve anahtarını yapıştır', action: 'settings',
         desc: 'Yaver\'in yapay zekâyı senin hesabınla kullanmasını sağlayan gizli bir şifredir. Bir kez eklemen yeterlidir.',
-        media: media([['1 · Anahtar al', 'sağlayıcının sitesinde hesap aç'], ['2 · Yapıştır', 'Ayarlar → AI → anahtar alanı'], ['3 · Kontrol et', 'onay işareti = kullanıma hazır']]),
         sections: [
           { h: 'Anahtarı nereden alırım?', p: 'Kullanmak istediğin sağlayıcının sitesinde ücretsiz bir hesap aç ve "API Keys" bölümünden yeni bir anahtar oluştur. Claude için console.anthropic.com, Gemini için aistudio.google.com, GPT için platform.openai.com adreslerini kullan. Anahtar uzun bir harf-rakam dizisidir.' },
           { h: 'Nereye girerim?', p: 'Sol alttaki "Ayarlar" düğmesine bas ve AI sekmesinde sağlayıcıyı seç. Anahtarı ilgili alana yapıştır, listeden bir model seç ve "Kontrol et"e bas. Onay mesajı görünce Yaver kullanıma hazırdır.' },
@@ -1791,7 +1787,6 @@ class Component extends DCLogic {
         ] },
       { id: 'ask', eyebrow: 'ADIM 2 · İSTEK', title: 'İsteğini nasıl yazmalısın?', go: 'Yeni bir istek başlat ve ilk isteğini yaz', action: 'new',
         desc: 'Bir çalışma arkadaşına anlatır gibi yaz: ne istiyorsun, kimin için ve ne uzunlukta.',
-        media: media([['Ne?', 'rapor, sunum, tablo, mektup…'], ['Kimin için?', 'yönetici, öğrenci, müşteri…'], ['Ne kadar?', 'sayfa veya slayt sayısı, üslup']]),
         sections: [
           { h: 'İyi bir isteğin parçaları', p: 'Konu, amaç, hedef kitle, uzunluk ve üslup. Bu beşini belirttiğinde Yaver tahmin yürütmek zorunda kalmaz. Örneğin belgenin türünü, kimin okuyacağını, kaç sayfa veya slayt olacağını ve resmî mi samimi mi olacağını yaz.' },
           { h: 'Dosya türünü seç', p: 'Yazı kutusunun altındaki düğmelerden istediğin türü (DOCX, PPTX, PDF, CSV…) seç ya da "Otomatik"te bırak; Yaver isteğine bakarak en uygun türü seçer.' },
@@ -1800,7 +1795,6 @@ class Component extends DCLogic {
         ] },
       { id: 'plan', eyebrow: 'ADIM 3 · ÜRETİM', title: 'Plan, üretim ve kontrol', go: 'Plan geldiğinde gözden geçir ve "Onayla"ya bas', action: 'detail',
         desc: 'Yaver önce bir taslak plan çıkarır. Sen onaylayınca dosya üretilir ve otomatik olarak kontrol edilir.',
-        media: media([['Plan', 'başlıklar ve akış önerisi'], ['Onay', 'uygunsa onayla, değilse isteği düzelt'], ['Üretim', 'ilerleme ve maliyet canlı görünür']]),
         sections: [
           { h: 'Neden önce plan?', p: 'Uzun bir belge üretilmeden önce yönünü görürsün. Yanlış anlaşılmayı erkenden yakalar, istemediğin bir belge için ücret ödemezsin.' },
           { h: 'Üretim sırasında', p: 'Ekranda hangi adımda olunduğu ve tahmini maliyet görünür. Vazgeçersen işi iptal edebilirsin. Büyük belgeler birkaç dakika sürebilir; sayfadan ayrılsan da iş devam eder.' },
@@ -1808,7 +1802,6 @@ class Component extends DCLogic {
         ] },
       { id: 'edit', eyebrow: 'ADIM 4 · SONUÇ', title: 'Önizle, düzenle, indir', go: 'Sol menüdeki geçmiş listesinden bir belgeyi aç', action: 'detail',
         desc: 'Hazır dosya ekranın sağında açılır. İstersen yapay zekâya değişiklik yaptırır, sonra indirirsin.',
-        media: media([['Önizle', 'sayfa sayfa veya slayt slayt'], ['Düzenle', 'editörde aç, Yaver Agent\'a yaz'], ['İndir', 'dosya adı içerikten gelir']]),
         sections: [
           { h: 'Önizleme', p: 'Belge hazır olunca sağ tarafta sayfa sayfa (sunumlarda slayt slayt) görüntülenir. İndirmeden önce içeriği buradan kontrol edebilirsin.' },
           { h: 'Düzenleme', p: '"Belgeyi düzenle" ile dosya, Office\'e benzer bir editörde açılır. Değişiklikleri elle yapabilir ya da sağdaki Yaver Agent paneline ne değişmesini istediğini yazabilirsin. Önerilen değişikliği önce görür, sonra uygular ya da vazgeçersin.' },
@@ -1816,7 +1809,6 @@ class Component extends DCLogic {
         ] },
       { id: 'llm', eyebrow: 'SEÇİM', title: 'Hangi yapay zekâyı seçmeliyim?', go: 'Sağlayıcını ve modelini Ayarlar → AI\'dan seç', action: 'settings',
         desc: 'Üç sağlayıcı desteklenir. Hepsi tüm dosya türlerini üretir ama güçlü oldukları alanlar farklıdır.',
-        media: media([['Claude · Anthropic', 'tasarım ve uzun belgelerde en güçlü'], ['Gemini · Google', 'sunumlara görsel de üretebilir'], ['GPT · OpenAI', 'genel metin ve tablo işleri']]),
         sections: [
           { h: 'Claude (Anthropic)', p: 'Tasarım kurallarına en iyi uyan ve kendi çıktısını en iyi denetleyen seçenek. Özenli sunumlar, uzun raporlar ve karmaşık belgeler için önerilir.' },
           { h: 'Gemini (Google)', p: 'Tüm belge türlerini üretir. Aynı anahtarla sunumlara yapay zekâ ile görsel de eklenebilir; bunun için Ayarlar → Görseller sekmesinden açılması gerekir.' },
@@ -1825,7 +1817,6 @@ class Component extends DCLogic {
         ] },
       { id: 'cost', eyebrow: 'MALİYET', title: 'Ücret ve bütçe nasıl işler?', go: 'Sol alttaki bütçe göstergesini takip et', action: 'detail',
         desc: 'Her işin ücretini senin anahtarının bağlı olduğu sağlayıcı alır. Uygulama harcamayı bir bütçe ile sınırlar.',
-        media: media([['Bütçe', 'harcanan / toplam limit'], ['İş başına', 'üretim sırasında tahmini maliyet'], ['Sınır', 'limit dolunca yeni iş başlamaz']]),
         sections: [
           { h: 'Ücreti kim alır?', p: 'Yaver\'in kendisi ücret almaz. Yapay zekâ sağlayıcısı, kullanılan metin miktarına göre ücreti anahtarın bağlı olduğu hesaba yansıtır. Uzun belgeler, kaynak dosyalar ve görseller maliyeti artırır.' },
           { h: 'Bütçe göstergesi', p: 'Sol alttaki çubuk, bu sunucuda harcanan tutarı ve kalan limiti gösterir. Limite yaklaşınca uyarı görürsün; limit dolduğunda yeni belge üretimi başlatılamaz.' },
@@ -1833,7 +1824,6 @@ class Component extends DCLogic {
         ] },
       { id: 'api', eyebrow: 'GELİŞTİRİCİLER İÇİN', title: 'Yaver\'i başka bir uygulamaya bağlamak', go: 'Kod örneklerini görmek için Ayrıntılar\'a bak', action: 'detail',
         desc: 'Yazılımcıysan Yaver\'e ekrandan değil kod üzerinden istek gönderebilir, hazır dosyayı otomatik olarak alabilirsin.',
-        media: media([['1 · İstek gönder', 'POST /api/chat'], ['2 · Durumu izle', 'GET /api/jobs/{id}'], ['3 · Dosyayı al', 'GET /api/files/{id}/download']]),
         sections: [
           { h: 'API nedir?', p: 'Programların birbiriyle konuşma yoludur. Kendi uygulamanın Yaver\'e istek gönderip hazır dosyayı almasını sağlar; ekrana girmeden toplu veya otomatik belge üretimi yapılabilir.' },
           { h: '1. İş oluştur', p: 'İsteği gönder; yanıtta işin kimliği (jobId) döner. format alanı boş bırakılırsa tür otomatik seçilir.', code: curl.create },
@@ -1845,7 +1835,6 @@ class Component extends DCLogic {
     ] : [
       { id: 'what', eyebrow: 'WELCOME', title: 'What is Yaver?', go: 'To get started, add an AI key first', action: 'settings',
         desc: 'You describe what you need in your own words; Yaver turns it into a Word, PowerPoint, PDF, Excel or CSV file.',
-        media: media([['You write', 'describe your need in plain words'], ['Yaver prepares', 'plans the content, builds the file'], ['You use it', 'preview, edit, download']]),
         sections: [
           { h: 'What is it for?', p: 'Creating reports, decks, tables, summaries or letters from scratch, or turning a text or file you already have into another format. You don\'t need to know how to lay out a document; describing what you want is enough.' },
           { h: 'How does it work?', p: 'Yaver uses an AI model behind the scenes. It understands your request, plans the content in sections, builds the file and opens it to check the result. You only approve the plan and use the result.' },
@@ -1853,7 +1842,6 @@ class Component extends DCLogic {
         ] },
       { id: 'key', eyebrow: 'STEP 1 · SETUP', title: 'What is an API key and how do I add it?', go: 'Open Settings → AI and paste your key', action: 'settings',
         desc: 'A secret code that lets Yaver use the AI with your account. You only add it once.',
-        media: media([['1 · Get a key', 'create an account with the provider'], ['2 · Paste it', 'Settings → AI → key field'], ['3 · Verify', 'check mark = ready to use']]),
         sections: [
           { h: 'Where do I get a key?', p: 'Create a free account with the provider you want and create a new key under "API Keys": console.anthropic.com for Claude, aistudio.google.com for Gemini, platform.openai.com for GPT. A key is a long string of letters and digits.' },
           { h: 'Where do I enter it?', p: 'Press "Settings" in the bottom-left and pick the provider on the AI tab. Paste the key, choose a model from the list and press "Verify". When the confirmation appears, Yaver is ready.' },
@@ -1861,7 +1849,6 @@ class Component extends DCLogic {
         ] },
       { id: 'ask', eyebrow: 'STEP 2 · REQUEST', title: 'How should I write a request?', go: 'Start a new request and write your first one', action: 'new',
         desc: 'Write it as you would to a colleague: what you need, who it is for and how long it should be.',
-        media: media([['What?', 'report, deck, table, letter…'], ['For whom?', 'managers, students, customers…'], ['How long?', 'pages or slides, tone']]),
         sections: [
           { h: 'Parts of a good request', p: 'Topic, purpose, audience, length and tone. When you state these five, Yaver doesn\'t have to guess. Mention the kind of document, who will read it, how many pages or slides, and whether it should be formal or friendly.' },
           { h: 'Pick a file type', p: 'Choose a type (DOCX, PPTX, PDF, CSV…) with the buttons under the text box, or leave it on "Auto" and Yaver picks the best fit for your request.' },
@@ -1870,7 +1857,6 @@ class Component extends DCLogic {
         ] },
       { id: 'plan', eyebrow: 'STEP 3 · BUILD', title: 'Plan, build and check', go: 'When the plan arrives, review it and press "Approve"', action: 'detail',
         desc: 'Yaver drafts a plan first. Once you approve it, the file is built and checked automatically.',
-        media: media([['Plan', 'proposed headings and flow'], ['Approve', 'approve it, or refine the request'], ['Build', 'progress and cost shown live']]),
         sections: [
           { h: 'Why a plan first?', p: 'You see the direction before a long document is built, catch misunderstandings early and don\'t pay for a document you don\'t want.' },
           { h: 'While it builds', p: 'The screen shows the current step and the estimated cost. You can cancel at any time. Large documents can take a few minutes; the job keeps running even if you leave the page.' },
@@ -1878,7 +1864,6 @@ class Component extends DCLogic {
         ] },
       { id: 'edit', eyebrow: 'STEP 4 · RESULT', title: 'Preview, edit, download', go: 'Open a document from the history list on the left', action: 'detail',
         desc: 'The finished file opens on the right. Have the AI make changes if you like, then download it.',
-        media: media([['Preview', 'page by page or slide by slide'], ['Edit', 'open the editor, ask Yaver Agent'], ['Download', 'file name comes from the content']]),
         sections: [
           { h: 'Preview', p: 'When the document is ready it is shown on the right, page by page (slide by slide for decks). Check it there before downloading.' },
           { h: 'Editing', p: '"Edit document" opens the file in an Office-like editor. Change it by hand, or tell the Yaver Agent panel on the right what should change. You see the proposed change first, then apply or discard it.' },
@@ -1886,7 +1871,6 @@ class Component extends DCLogic {
         ] },
       { id: 'llm', eyebrow: 'CHOICE', title: 'Which AI should I choose?', go: 'Pick your provider and model in Settings → AI', action: 'settings',
         desc: 'Three providers are supported. All of them produce every file type, but their strengths differ.',
-        media: media([['Claude · Anthropic', 'strongest at design and long documents'], ['Gemini · Google', 'can also create images for decks'], ['GPT · OpenAI', 'general text and table work']]),
         sections: [
           { h: 'Claude (Anthropic)', p: 'Follows the design rules and checks its own output most closely. Recommended for polished decks, long reports and complex documents.' },
           { h: 'Gemini (Google)', p: 'Produces every document type. With the same key it can also add AI-generated images to decks; enable this under Settings → Images.' },
@@ -1895,7 +1879,6 @@ class Component extends DCLogic {
         ] },
       { id: 'cost', eyebrow: 'COST', title: 'How do cost and budget work?', go: 'Keep an eye on the budget meter in the bottom-left', action: 'detail',
         desc: 'The provider behind your key bills each job. The app caps spending with a budget.',
-        media: media([['Budget', 'spent / total limit'], ['Per job', 'estimated cost while building'], ['Limit', 'no new jobs once it is reached']]),
         sections: [
           { h: 'Who charges?', p: 'Yaver itself charges nothing. The AI provider bills the account behind the key based on how much text is processed. Long documents, source files and images cost more.' },
           { h: 'Budget meter', p: 'The bar in the bottom-left shows what this server has spent and the remaining limit. You are warned near the limit; once it is reached, no new document can be started.' },
@@ -1903,7 +1886,6 @@ class Component extends DCLogic {
         ] },
       { id: 'api', eyebrow: 'FOR DEVELOPERS', title: 'Connecting Yaver to another app', go: 'See the code examples under Details', action: 'detail',
         desc: 'If you write software, you can send requests to Yaver from code instead of the screen and fetch the finished file automatically.',
-        media: media([['1 · Send a request', 'POST /api/chat'], ['2 · Track status', 'GET /api/jobs/{id}'], ['3 · Get the file', 'GET /api/files/{id}/download']]),
         sections: [
           { h: 'What is an API?', p: 'A way for programs to talk to each other. It lets your own application send a request to Yaver and receive the finished file, so documents can be produced in bulk or automatically.' },
           { h: '1. Create a job', p: 'Send the request; the response carries the job id. Leave format empty to have the type chosen automatically.', code: curl.create },
@@ -2938,7 +2920,7 @@ class Component extends DCLogic {
         const open = cards.find(c => c.id === s.infoOpen);
         const stop = e => { if (e && e.stopPropagation) e.stopPropagation(); };
         return {
-          infoTop: top ? { ...top, pos: (s.infoIndex % cards.length + 1) + '/' + cards.length } : null,
+          infoTop: top ? { ...top, pos: (s.infoIndex % cards.length + 1) + '/' + cards.length, media: [1, 2, 3].map(n => ({ src: 'info/' + top.id + '-' + n + '.jpg', i: n - 1 })) } : null,
           infoDepth: '2',
           infoLeaving: s.infoLeaving,
           infoHidden: s.infoHidden,
