@@ -234,10 +234,15 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         int failures = 0;
         boolean lastFailed = false;
         int reviewsLeft = reviewable(job) ? reviewRounds : 0;
+        // The format fixes the tool; forcing it stops models (notably Gemini) from answering with the
+        // script as plain text instead of a tool call.
+        String forced = job.getFormat() == null ? null : generationTool(job.getFormat());
+        List<LlmClient.Tool> tools = forced == null ? toolRegistry.allTools()
+                : toolRegistry.allTools().stream().filter(t -> t.name().equals(forced)).toList();
 
         for (int turn = 0; failures < maxToolTurns; turn++) {
             Response response = billedRequest(job, new LlmClient.Request(systemPrompt, List.copyOf(messages),
-                    toolRegistry.allTools(), null, maxTokens));
+                    tools, forced, maxTokens));
 
             totalInputTokens  += response.inputTokens();
             totalOutputTokens += response.outputTokens();
@@ -247,7 +252,14 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             ToolCall toolUse = response.firstToolCall(null);
             if (toolUse == null) {
                 if (succeeded) break; // a reviewed deck already exists; keep it rather than fail the job
-                throw new IllegalStateException("Model did not call a tool: " + (response.text() == null ? "(no content)" : response.text()));
+                String text = response.text() == null ? "(no content)" : response.text().strip();
+                lastError = "Model did not call a tool: " + (text.length() > 200 ? text.substring(0, 200) + "…" : text);
+                lastFailed = true;
+                failures++;
+                log.warn("Job {} turn {}: model answered without a tool call", job.getId(), turn);
+                messages.add(Message.user("Do not write the script as plain text. Respond only by calling the "
+                        + (forced == null ? "tool for the output format" : forced + " tool") + " with the COMPLETE script as its argument."));
+                continue;
             }
 
             String inputJson = objectMapper.writeValueAsString(toolUse.input());
@@ -295,6 +307,20 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                 (int) totalOutputTokens,
                 computeCost(job, totalInputTokens, totalOutputTokens)
         );
+    }
+
+    /** The single create_* tool each output format is generated with (see SystemPrompts.MAIN). */
+    static String generationTool(com.officemanipulator.domain.OutputFormat format) {
+        return switch (format.generationFormat()) {
+            case DOCX -> "create_word";
+            case PPTX -> "create_presentation";
+            case PDF -> "create_pdf";
+            case CSV -> "create_csv";
+            case XLSX -> "create_xlsx";
+            case ODB -> "create_odb";
+            case TXT, MD, JSON, XML -> "create_text";
+            default -> null;
+        };
     }
 
     /** Presentations get the design guides from presentation-skills/ appended to the system prompt. */

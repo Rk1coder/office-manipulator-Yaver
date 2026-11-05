@@ -116,4 +116,28 @@ class VisualReviewLoopTest {
             assertEquals(3, deck.getSlides().size(), "the deck that passed validation is delivered");
         }
     }
+
+    @Test void aPlainTextScriptIsRetriedWithTheFormatsToolForcedInsteadOfFailingTheJob() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(new LlmClient.Response("```javascript\nconst pptxgen = require('pptxgenjs');\n```", List.of(), 10, 20));
+        llm.answers.add(call("create_presentation", "{\"script\":\"v1\"}"));
+        llm.answers.add(call("submit_slide_review", "{\"approved\":true,\"summary\":\"ok\",\"issues\":[]}"));
+        var dispatcher = mock(ToolDispatcher.class);
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { writeDeck(a.getArgument(2), 2); return "OK"; });
+
+        orchestrator(llm, dispatcher, 2).run(deckJob());
+
+        var first = llm.requests.get(0);
+        assertEquals("create_presentation", first.forcedTool(), "the format's tool is forced");
+        assertEquals(List.of("create_presentation"), first.tools().stream().map(LlmClient.Tool::name).toList(), "only that tool is offered");
+        assertTrue(llm.requests.get(1).messages().getLast().text().contains("Do not write the script as plain text"));
+        verify(dispatcher).dispatch(eq("create_presentation"), anyString(), any(), anyMap());
+    }
+
+    @Test void repeatedPlainTextAnswersFailWithAShortError() throws Exception {
+        var llm = new ScriptedLlm();
+        for (int i = 0; i < 2; i++) llm.answers.add(new LlmClient.Response("x".repeat(5000), List.of(), 10, 20));
+        var error = assertThrows(IllegalStateException.class, () -> orchestrator(llm, mock(ToolDispatcher.class), 2).run(deckJob()));
+        assertTrue(error.getMessage().length() < 400, "the user-facing error must not dump the whole script");
+    }
 }
