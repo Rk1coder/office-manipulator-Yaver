@@ -1,14 +1,16 @@
 package com.officemanipulator.claude;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.officemanipulator.claude.dto.OrchestratorDesignResult;
 import com.officemanipulator.claude.dto.OrchestratorDocumentEditResult;
 import com.officemanipulator.claude.dto.OrchestratorPlanResult;
 import com.officemanipulator.claude.dto.OrchestratorResult;
 import com.officemanipulator.domain.Job;
+import com.officemanipulator.llm.LlmClient;
+import com.officemanipulator.llm.LlmClient.Message;
+import com.officemanipulator.llm.LlmClient.Response;
+import com.officemanipulator.llm.LlmClient.ToolCall;
+import com.officemanipulator.llm.LlmSelection;
 import com.officemanipulator.storage.FileStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,8 +25,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Drives the Claude tool-use loop: sends the user request, receives a tool call,
- * delegates execution to ToolDispatcher, then feeds the result back to Claude.
+ * Drives the LLM tool-use loop: sends the user request, receives a tool call,
+ * delegates execution to ToolDispatcher, then feeds the result back to the model.
+ * Provider-neutral: each call goes to the {@link LlmClient} adapter of the job's
+ * {@link LlmSelection} (.env default or the request's override, see LlmClientProvider).
  * System prompt lives in SystemPrompts; tool routing lives in ToolDispatcher.
  */
 @Service
@@ -34,7 +38,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.officemanipulator.service.ApiBillingService billing;
-    private final com.officemanipulator.config.ClaudeClientProvider provider;
+    private final com.officemanipulator.config.LlmClientProvider provider;
     private final ToolRegistry toolRegistry;
     private final ToolDispatcher dispatcher;
     private final FileStorageService storageService;
@@ -55,7 +59,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     }
 
     public ClaudeOrchestrator(
-            com.officemanipulator.config.ClaudeClientProvider provider,
+            com.officemanipulator.config.LlmClientProvider provider,
             ToolRegistry toolRegistry,
             ToolDispatcher dispatcher,
             FileStorageService storageService,
@@ -69,21 +73,18 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     }
 
     public OrchestratorResult run(Job job) throws Exception {
-        List<MessageParam> messages = new ArrayList<>();
+        List<Message> messages = new ArrayList<>();
         messages.add(buildUserMessage(job));
         return runLoop(job, messages, SystemPrompts.MAIN);
     }
 
     public OrchestratorResult runEdit(Job job, String documentContext) throws Exception {
-        List<MessageParam> messages = new ArrayList<>();
+        List<Message> messages = new ArrayList<>();
         StringBuilder content = new StringBuilder();
         content.append("EXISTING DOCUMENT CONTENT:\n").append(documentContext);
         content.append("\n\nEDIT INSTRUCTION: ").append(job.getRequest());
         content.append("\n\nOutput format: ").append(job.getFormat().generationFormat().name());
-        messages.add(MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(content.toString())
-                .build());
+        messages.add(Message.user(content.toString()));
         return runLoop(job, messages, SystemPrompts.EDIT);
     }
 
@@ -93,27 +94,9 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
      */
     public String runFragmentEdit(Job job, String fragmentJson, String instruction) {
         String userMsg = "CURRENT FRAGMENT (JSON):\n" + fragmentJson + "\n\nINSTRUCTION: " + instruction;
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(userMsg)
-                .build();
-
-        MessageCreateParams params = MessageCreateParams.builder()
-                .model(provider.model())
-                .maxTokens(2000)
-                .system(SystemPrompts.FRAGMENT_EDIT)
-                .messages(List.of(userMessage))
-                .build();
-
-        Message response = billedRequest(job, params);
-
-        String text = response.content().stream()
-                .flatMap(b -> b.text().stream())
-                .map(TextBlock::text)
-                .findFirst()
-                .orElse(fragmentJson);
-
-        return extractJson(text);
+        Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.FRAGMENT_EDIT,
+                List.of(Message.user(userMsg)), List.of(), null, 2000));
+        return extractJson(response.text() != null ? response.text() : fragmentJson);
     }
 
     /**
@@ -129,23 +112,14 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             String snippet = job.getSourceText().substring(0, Math.min(job.getSourceText().length(), 4000));
             content.append("\n\n--- SOURCE CONTENT (for context only; do not write content from this) ---\n").append(snippet);
         }
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(content.toString())
-                .build();
-        MessageCreateParams params = MessageCreateParams.builder()
-                .model(provider.model()).maxTokens(1200).system(SystemPrompts.DESIGN_DIRECTOR)
-                .addTool(toolRegistry.designDirectionTool())
-                .toolChoice(ToolChoiceTool.builder().name("submit_design_direction").disableParallelToolUse(true).build())
-                .messages(List.of(userMessage)).build();
-        Message response = billedRequest(job, params);
-        ToolUseBlock direction = response.content().stream().flatMap(block -> block.toolUse().stream())
-                .filter(tool -> tool.name().equals("submit_design_direction")).findFirst()
-                .orElseThrow(() -> new IllegalStateException("Claude design direction çağrısı tamamlanmadı."));
+        Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.DESIGN_DIRECTOR,
+                List.of(Message.user(content.toString())), List.of(toolRegistry.designDirectionTool()), "submit_design_direction", 1200));
+        ToolCall direction = response.firstToolCall("submit_design_direction");
+        if (direction == null) throw new IllegalStateException("Design direction çağrısı tamamlanmadı.");
         try {
-            String json = objectMapper.writeValueAsString(direction._input());
-            return new OrchestratorDesignResult(json, (int) response.usage().inputTokens(), (int) response.usage().outputTokens(),
-                    computeCost(response.usage().inputTokens(), response.usage().outputTokens()));
+            String json = objectMapper.writeValueAsString(direction.input());
+            return new OrchestratorDesignResult(json, (int) response.inputTokens(), (int) response.outputTokens(),
+                    computeCost(job, response.inputTokens(), response.outputTokens()));
         } catch (Exception e) {
             throw new IllegalStateException("Design direction could not be serialized", e);
         }
@@ -185,23 +159,14 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
      */
     public OrchestratorDocumentEditResult runDocumentEdit(Job job, String currentText, String instruction) {
         String userMsg = "CURRENT SELECTED TEXT:\n" + currentText + "\n\nINSTRUCTION: " + instruction;
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(userMsg)
-                .build();
-        MessageCreateParams params = MessageCreateParams.builder()
-                .model(provider.model()).maxTokens(2000).system(SystemPrompts.DOCUMENT_AGENT)
-                .addTool(toolRegistry.documentEditTool())
-                .toolChoice(ToolChoiceTool.builder().name("submit_document_edit").disableParallelToolUse(true).build())
-                .messages(List.of(userMessage)).build();
-        Message response = billedRequest(job, params);
-        ToolUseBlock edit = response.content().stream().flatMap(block -> block.toolUse().stream())
-                .filter(tool -> tool.name().equals("submit_document_edit")).findFirst()
-                .orElseThrow(() -> new IllegalStateException("Claude döküman düzenleme çağrısı tamamlanmadı."));
+        Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.DOCUMENT_AGENT,
+                List.of(Message.user(userMsg)), List.of(toolRegistry.documentEditTool()), "submit_document_edit", 2000));
+        ToolCall edit = response.firstToolCall("submit_document_edit");
+        if (edit == null) throw new IllegalStateException("Döküman düzenleme çağrısı tamamlanmadı.");
         try {
-            String json = objectMapper.writeValueAsString(edit._input());
-            return new OrchestratorDocumentEditResult(json, (int) response.usage().inputTokens(), (int) response.usage().outputTokens(),
-                    computeCost(response.usage().inputTokens(), response.usage().outputTokens()));
+            String json = objectMapper.writeValueAsString(edit.input());
+            return new OrchestratorDocumentEditResult(json, (int) response.inputTokens(), (int) response.outputTokens(),
+                    computeCost(job, response.inputTokens(), response.outputTokens()));
         } catch (Exception e) {
             throw new IllegalStateException("Document edit could not be serialized", e);
         }
@@ -217,32 +182,22 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         }
         appendComputedFacts(content, job);
         appendDesignDirection(content, job);
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(content.toString())
-                .build();
-
-        List<MessageParam> messages = new ArrayList<>(List.of(userMessage));
+        List<Message> messages = new ArrayList<>(List.of(Message.user(content.toString())));
         long inputTokens = 0, outputTokens = 0;
         for (int attempt = 0; attempt < 2; attempt++) {
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(provider.model()).maxTokens(maxTokens).system(SystemPrompts.PLAN)
-                    .addTool(toolRegistry.planTool(job.getFormat().name()))
-                    .toolChoice(ToolChoiceTool.builder().name("submit_plan").disableParallelToolUse(true).build())
-                    .messages(messages).build();
-            Message response = billedRequest(job, params);
-            inputTokens += response.usage().inputTokens(); outputTokens += response.usage().outputTokens();
-            ToolUseBlock plan = response.content().stream().flatMap(block -> block.toolUse().stream())
-                    .filter(tool -> tool.name().equals("submit_plan")).findFirst()
-                    .orElseThrow(() -> new IllegalStateException("Claude tamamlanmış bir plan döndürmedi; çıktı sınırı aşılmış olabilir."));
+            Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.PLAN, List.copyOf(messages),
+                    List.of(toolRegistry.planTool(job.getFormat().name())), "submit_plan", maxTokens));
+            inputTokens += response.inputTokens(); outputTokens += response.outputTokens();
+            ToolCall plan = response.firstToolCall("submit_plan");
+            if (plan == null) throw new IllegalStateException("Model tamamlanmış bir plan döndürmedi; çıktı sınırı aşılmış olabilir.");
             try {
-                var tree = objectMapper.readTree(objectMapper.writeValueAsString(plan._input()));
+                var tree = plan.input().deepCopy();
                 PlanQuality.prepare(tree, job);
-                return new OrchestratorPlanResult(objectMapper.writeValueAsString(tree), (int)inputTokens, (int)outputTokens, computeCost(inputTokens, outputTokens));
+                return new OrchestratorPlanResult(objectMapper.writeValueAsString(tree), (int)inputTokens, (int)outputTokens, computeCost(job, inputTokens, outputTokens));
             } catch (Exception e) {
                 if (attempt == 1) throw new IllegalStateException("Plan is incomplete after correction: " + e.getMessage(), e);
-                messages.add(toAssistantParam(response));
-                messages.add(toToolResultParam(plan.id(), "ERROR: " + e.getMessage() + " Return the entire corrected plan, preserving the source and requested content."));
+                messages.add(Message.assistant(response));
+                messages.add(Message.toolResult(plan, "ERROR: " + e.getMessage() + " Return the entire corrected plan, preserving the source and requested content."));
             }
         }
         throw new IllegalStateException("Plan could not be completed");
@@ -260,7 +215,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         return trimmed;
     }
 
-    private OrchestratorResult runLoop(Job job, List<MessageParam> messages, String systemPrompt) throws Exception {
+    private OrchestratorResult runLoop(Job job, List<Message> messages, String systemPrompt) throws Exception {
         long totalInputTokens  = 0;
         long totalOutputTokens = 0;
         Path outputPath = null;
@@ -268,29 +223,22 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         String lastError = "No tool attempts were configured";
 
         for (int turn = 0; turn < maxToolTurns; turn++) {
-            Message response = sendRequest(job, messages, systemPrompt);
+            Response response = billedRequest(job, new LlmClient.Request(systemPrompt, List.copyOf(messages),
+                    toolRegistry.allTools(), null, maxTokens));
 
-            totalInputTokens  += response.usage().inputTokens();
-            totalOutputTokens += response.usage().outputTokens();
+            totalInputTokens  += response.inputTokens();
+            totalOutputTokens += response.outputTokens();
 
-            messages.add(toAssistantParam(response));
+            messages.add(Message.assistant(response));
 
-            var toolUseOpt = response.content().stream()
-                    .filter(b -> b.toolUse().isPresent())
-                    .findFirst();
-
-            if (toolUseOpt.isEmpty()) {
-                String text = response.content().stream()
-                        .flatMap(b -> b.text().stream())
-                        .map(TextBlock::text)
-                        .findFirst().orElse("(no content)");
-                throw new IllegalStateException("Claude did not call a tool: " + text);
+            ToolCall toolUse = response.firstToolCall(null);
+            if (toolUse == null) {
+                throw new IllegalStateException("Model did not call a tool: " + (response.text() == null ? "(no content)" : response.text()));
             }
 
-            ToolUseBlock toolUse = toolUseOpt.get().toolUse().get();
-            String inputJson = objectMapper.writeValueAsString(toolUse._input());
+            String inputJson = objectMapper.writeValueAsString(toolUse.input());
 
-            log.info("Job {} turn {}: Claude called {}", job.getId(), turn, toolUse.name());
+            log.info("Job {} turn {}: model called {}", job.getId(), turn, toolUse.name());
 
             outputPath = storageService.resolveOutputPath(job.getId(), job.getFormat());
 
@@ -305,7 +253,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                 log.warn("Job {} tool error on turn {}: {}", job.getId(), turn, e.getMessage());
             }
 
-            messages.add(toToolResultParam(toolUse.id(), toolResult));
+            messages.add(Message.toolResult(toolUse, toolResult));
 
             if (!toolResult.startsWith("ERROR")) { succeeded = true; break; }
             lastError = toolResult;
@@ -316,13 +264,13 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                 outputPath,
                 (int) totalInputTokens,
                 (int) totalOutputTokens,
-                computeCost(totalInputTokens, totalOutputTokens)
+                computeCost(job, totalInputTokens, totalOutputTokens)
         );
     }
 
     // ── private helpers ───────────────────────────────────────────────────────
 
-    private MessageParam buildUserMessage(Job job) {
+    private Message buildUserMessage(Job job) {
         StringBuilder content = new StringBuilder(job.getRequest());
         if (job.getSourceText() != null && !job.getSourceText().isBlank()) {
             content.append("\n\n--- SOURCE CONTENT ---\n").append(job.getSourceText());
@@ -334,10 +282,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         appendComputedFacts(content, job);
         appendDesignDirection(content, job);
         appendImageInstructions(content, job);
-        return MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(content.toString())
-                .build();
+        return Message.user(content.toString());
     }
 
     private void appendComputedFacts(StringBuilder content, Job job) {
@@ -374,82 +319,29 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         }
     }
 
-    private Message sendRequest(Job job, List<MessageParam> messages, String systemPrompt) {
-        MessageCreateParams.Builder builder = MessageCreateParams.builder()
-                .model(provider.model())
-                .maxTokens(maxTokens)
-                .system(systemPrompt)
-                .messages(messages)
-                .toolChoice(ToolChoiceAuto.builder().build());
-
-        toolRegistry.allTools().forEach(builder::addTool);
-        return billedRequest(job, builder.build());
-    }
-
-    private Message billedRequest(Job job, MessageCreateParams params) {
+    private Response billedRequest(Job job, LlmClient.Request request) {
+        LlmSelection selection = provider.selectionFor(job.getId());
+        // A caller's own key bills the caller, not this server's budget.
+        boolean billable = billing != null && !selection.requestKey();
         // UTF-8 bytes bound text token count; reserve extra space for message/tool framing.
-        long inputCeiling = params.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 2L + 8192;
-        java.util.UUID reservation = billing == null ? null : billing.reserve(job.getId(), "anthropic",
-            computeCost(inputCeiling, params.maxTokens()));
-        Message response;
-        try {
-            if (params.maxTokens() > 8192) {
-                var accumulator = com.anthropic.helpers.MessageAccumulator.create();
-                try (var stream = provider.client().messages().createStreaming(params)) {
-                    stream.stream().forEach(event -> {
-                        if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Üretim iptal edildi");
-                        accumulator.accumulate(event);
-                    });
-                    response = accumulator.message();
-                }
-            } else response = provider.client().messages().create(params);
-        }
+        long inputCeiling = request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 2L + 8192;
+        java.util.UUID reservation = billable ? billing.reserve(job.getId(), selection.provider().id(),
+            computeCost(selection.model(), inputCeiling, request.maxTokens())) : null;
+        Response response;
+        try { response = provider.client(selection.provider()).chat(selection, request); }
         catch (RuntimeException e) { if (reservation != null) billing.uncertain(reservation); throw e; }
-        long input = response.usage().inputTokens(), output = response.usage().outputTokens();
-        BigDecimal cost = computeCost(input, output);
+        long input = response.inputTokens(), output = response.outputTokens();
+        BigDecimal cost = computeCost(selection.model(), input, output);
         if (reservation != null) billing.settle(reservation, cost, input, output);
         com.officemanipulator.service.JobUsage.snapshot(job).apply(job, (int) input, (int) output, cost);
         return response;
     }
 
-    private MessageParam toAssistantParam(Message response) {
-        List<ContentBlockParam> blocks = new ArrayList<>();
-        for (ContentBlock block : response.content()) {
-            block.text().ifPresent(t ->
-                    blocks.add(ContentBlockParam.ofText(
-                            TextBlockParam.builder().text(t.text()).build())));
-            block.toolUse().ifPresent(tu -> {
-                Map<String, JsonValue> inputMap = tu._input()
-                        .convert(new TypeReference<>() {});
-                blocks.add(ContentBlockParam.ofToolUse(
-                        ToolUseBlockParam.builder()
-                                .id(tu.id())
-                                .name(tu.name())
-                                .input(ToolUseBlockParam.Input.builder()
-                                        .additionalProperties(inputMap != null ? inputMap : Map.of())
-                                        .build())
-                                .build()));
-            });
-        }
-        return MessageParam.builder()
-                .role(MessageParam.Role.ASSISTANT)
-                .contentOfBlockParams(blocks)
-                .build();
+    private BigDecimal computeCost(Job job, long inputTokens, long outputTokens) {
+        return computeCost(provider.selectionFor(job.getId()).model(), inputTokens, outputTokens);
     }
 
-    private MessageParam toToolResultParam(String toolUseId, String content) {
-        return MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .contentOfBlockParams(List.of(ContentBlockParam.ofToolResult(
-                        ToolResultBlockParam.builder()
-                                .toolUseId(toolUseId)
-                                .content(content)
-                                .build())))
-                .build();
-    }
-
-    private BigDecimal computeCost(long inputTokens, long outputTokens) {
-        String activeModel = provider.model();
+    private BigDecimal computeCost(String activeModel, long inputTokens, long outputTokens) {
         boolean sameAsConfigured = activeModel != null && activeModel.equals(pricingModel);
         BigDecimal[] known = sameAsConfigured ? null : com.officemanipulator.config.ModelPricing.priceFor(activeModel);
         BigDecimal inputRate = known != null ? known[0] : inputPricePerMillion;

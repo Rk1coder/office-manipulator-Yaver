@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 @EnabledIfEnvironmentVariable(named="OFFICE_TEST_DB_URL", matches=".*office_audit_test.*")
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT, properties={
  "spring.datasource.url=${OFFICE_TEST_DB_URL}","spring.datasource.username=postgres","spring.datasource.password=office-test-only",
- "app.claude.api-key=fake-test-key","app.budget.limit-usd=2.00","app.gemini.enabled=false",
+ "app.llm.anthropic.api-key=fake-test-key","app.budget.limit-usd=2.00","app.gemini.enabled=false",
  "app.storage.base-path=/tmp/office-backend-integration-files"})
 class DatabaseIntegrationTest {
  @Autowired JobRepository jobs;
@@ -33,7 +33,13 @@ class DatabaseIntegrationTest {
  @Autowired FileCleanupService cleanup;
  @Autowired com.officemanipulator.storage.FileStorageService storage;
  @MockBean ClaudeOrchestrator ai;
- @BeforeEach void clean() {jdbc.update("DELETE FROM api_calls");jdbc.update("DELETE FROM jobs");}
+ @Autowired com.officemanipulator.config.LlmClientProvider llm;
+ // AI endpoints require a "Kontrol et"-verified key; these tests predate that gate.
+ @BeforeEach void clean() {jdbc.update("DELETE FROM api_calls");jdbc.update("DELETE FROM jobs");llm.activateVerified("fake-test-key","claude-sonnet-4-6");}
+ @Test void chatRejectsProviderOutsideWhitelistWithoutCreatingAJob() {
+  var r=http.postForEntity("/api/chat",Map.of("message","x","llm_provider","http://169.254.169.254","llm_api_key","k"),String.class);
+  assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST,r.getStatusCode());assertEquals(0,jobs.count());
+ }
  Job job(JobStatus state) {
   Job j=new Job();j.setStatus(state);j.setRequest("integration");j.setFormat(OutputFormat.CSV);
   j.setPlanJson("{\"title\":\"Current\",\"format\":\"csv\",\"outline\":[{\"order\":1,\"title\":\"Data\",\"summary\":\"Current data\"}]}");return jobs.saveAndFlush(j);

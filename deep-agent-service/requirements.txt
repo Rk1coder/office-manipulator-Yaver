@@ -1,5 +1,7 @@
 deepagents
 langchain-anthropic
+langchain-google-genai
+langchain-openai
 fastapi
 uvicorn[standard]
 httpx

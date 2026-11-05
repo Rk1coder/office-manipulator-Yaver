@@ -46,14 +46,28 @@ app:
   budget:
     limit-usd: ${BUDGET_LIMIT_USD:20.00}
     warn-threshold-usd: 19.50
+  # Customer-supplied LLM: provider is one of a fixed whitelist (anthropic|gemini|openai), each
+  # with a hard-coded endpoint. User-facing endpoints may override provider/key/model per request
+  # (llm_provider/llm_api_key/llm_model); background work always uses these defaults.
+  llm:
+    provider: ${LLM_PROVIDER:anthropic}
+    # Default model's price; blank = built-in table (Anthropic models only). CLAUDE_* kept for old .env files.
+    input-price-per-million: ${LLM_INPUT_PRICE_PER_MILLION:${CLAUDE_INPUT_PRICE_PER_MILLION:}}
+    output-price-per-million: ${LLM_OUTPUT_PRICE_PER_MILLION:${CLAUDE_OUTPUT_PRICE_PER_MILLION:}}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: ${ANTHROPIC_MODEL:${CLAUDE_MODEL:claude-sonnet-4-6}}
+      # Operator-run proxy only (env, never request input); blank = official API.
+      base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:}
   claude:
-    api-key: ${ANTHROPIC_API_KEY:}
-    model: ${CLAUDE_MODEL:claude-sonnet-4-6}
-    base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
     max-tokens: 32000
     max-tool-turns: 4
-    input-price-per-million: ${CLAUDE_INPUT_PRICE_PER_MILLION:}
-    output-price-per-million: ${CLAUDE_OUTPUT_PRICE_PER_MILLION:}
   limits:
     source-text-bytes: 81920
     max-word-sections: 60

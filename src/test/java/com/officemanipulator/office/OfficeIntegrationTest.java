@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
 @EnabledIfEnvironmentVariable(named="OFFICE_TEST_DB_URL",matches=".*office_audit_test.*")
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
  "spring.datasource.url=${OFFICE_TEST_DB_URL}","spring.datasource.username=postgres","spring.datasource.password=office-test-only",
- "app.claude.api-key=fake-test-key","app.budget.limit-usd=2.00","app.gemini.enabled=false",
+ "app.llm.anthropic.api-key=fake-test-key","app.budget.limit-usd=2.00","app.gemini.enabled=false",
  "app.storage.base-path=/tmp/office-editor-integration-files","app.office.enabled=true",
  "app.office.jwt-secret=test-secret-at-least-thirty-two-characters"})
 class OfficeIntegrationTest {
@@ -29,6 +29,7 @@ class OfficeIntegrationTest {
  @Autowired FileStorageService storage; @Autowired JdbcTemplate db; @Autowired ObjectMapper json;
  @Autowired TestRestTemplate http;
  @MockBean OfficeDocumentClient docs; @MockBean ClaudeOrchestrator ai;
+ @Autowired com.officemanipulator.config.LlmClientProvider llm;
  @BeforeEach @AfterEach void clean(){db.update("DELETE FROM office_sessions");db.update("DELETE FROM api_calls");db.update("DELETE FROM budget_log");db.update("DELETE FROM jobs");}
  Job fixture() throws Exception {
   Job j=new Job();j.setRequest("Original");j.setFormat(OutputFormat.DOCX);j.setStatus(JobStatus.DONE);j.setFileName("belge.docx");jobs.saveAndFlush(j);
@@ -109,6 +110,7 @@ class OfficeIntegrationTest {
   assertNull(office.session(id).error());assertEquals(latest,office.session(id).acknowledgedRequest());
  }
  @Test void agentReturnsProposalWithoutChangingDocumentAndAccountsUsage() throws Exception {
+  llm.activateVerified("fake-test-key","claude-sonnet-4-6"); // AI endpoints require a verified key; this test predates that gate
   Job original=fixture();var opened=office.open(original.getId());UUID id=(UUID)opened.get("sessionId");
   when(ai.runDocumentEdit(any(),anyString(),anyString())).thenAnswer(a->{Job j=a.getArgument(0);j.setTokenInput(11);j.setTokenOutput(7);j.setCostUsd(new java.math.BigDecimal("0.001"));
    return new com.officemanipulator.claude.dto.OrchestratorDocumentEditResult("{\"text\":\"Öneri\",\"formatting\":null}",11,7,new java.math.BigDecimal("0.001"));});

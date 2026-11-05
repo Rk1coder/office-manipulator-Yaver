@@ -47,8 +47,7 @@ class AuditRegressionTest {
   when(r.sumTotalCost()).thenReturn(BigDecimal.ZERO); return r;
  }
  ClaudeOrchestrator orchestrator(AnthropicClient client, ToolDispatcher dispatcher) throws Exception {
-  com.officemanipulator.config.ClaudeClientProvider provider=mock(com.officemanipulator.config.ClaudeClientProvider.class);
-  when(provider.client()).thenReturn(client);when(provider.model()).thenReturn("audit-model");
+  var provider=com.officemanipulator.llm.TestLlm.provider(client,"audit-model");
   ClaudeOrchestrator o=new ClaudeOrchestrator(provider,new ToolRegistry(),dispatcher,new FileStorageService(tmp.toString()),mapper);
   ReflectionTestUtils.setField(o,"maxTokens",1000L);
   ReflectionTestUtils.setField(o,"maxToolTurns",2);

@@ -17,7 +17,7 @@ python3 -m venv .venv
 ## Run
 
 ```bash
-ANTHROPIC_API_KEY=<real key>          \
+LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=<real key>   \
 JAVA_APP_BASE_URL=http://localhost:8080 \
 INTERNAL_TOKEN=<matches app.agent.deep-agents.internal-token on the Java side> \
 PORT=8000                              \

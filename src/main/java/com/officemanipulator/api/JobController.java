@@ -38,6 +38,9 @@ public class JobController {
     private final ObjectMapper objectMapper;
     private final AgentOrchestrator orchestrator;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.officemanipulator.config.LlmClientProvider llm;
+
     private final Map<UUID, java.util.Set<reactor.core.publisher.FluxSink<Map<String,String>>>> subscribers = new java.util.HashMap<>();
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -98,6 +101,9 @@ public class JobController {
             @PathVariable UUID id,
             @RequestBody Map<String, String> body
     ) {
+        com.officemanipulator.llm.LlmSelection override;
+        try { override = takeOverride(body); }
+        catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", e.getMessage())); }
         String instruction   = body.get("instruction");
         String selectedText  = body.get("selectedText");
         if (instruction == null || instruction.isBlank() || instruction.length() > 10000 || (selectedText != null && selectedText.length() > 81920)) {
@@ -105,6 +111,7 @@ public class JobController {
         }
         try {
             Job editJob = documentEditService.createEditJob(id, instruction, selectedText);
+            if (llm != null) llm.bindJob(editJob.getId(), override);
             documentEditService.processEditAsync(editJob.getId(), id);
             return ResponseEntity.accepted().body(Map.of("jobId", editJob.getId().toString()));
         } catch (com.officemanipulator.exception.JobNotFoundException e) {
@@ -155,7 +162,10 @@ public class JobController {
             @RequestBody(required = false) Map<String, Object> overrides
     ) {
         try {
+            var override = takeOverride(overrides);
             planningService.confirmPlan(id, overrides);
+            // A confirm without its own override keeps whatever the plan request bound.
+            if (override != null) llm.bindJob(id, override);
             planningService.generateAfterPlanAsync(id);
             return ResponseEntity.accepted().body(Map.of("jobId", id.toString()));
         } catch (com.officemanipulator.exception.JobNotFoundException e) {
@@ -174,6 +184,9 @@ public class JobController {
             @PathVariable UUID id,
             @RequestBody Map<String, Object> body
     ) {
+        com.officemanipulator.llm.LlmSelection override;
+        try { override = takeOverride(body); }
+        catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", e.getMessage())); }
         Job job = jobService.findById(id).orElse(null);
         if (job == null) return ResponseEntity.notFound().build();
         if (job.getStatus() != JobStatus.DONE || job.getFilePath() == null
@@ -193,7 +206,8 @@ public class JobController {
             String fragmentJson = objectMapper.writeValueAsString(fragment);
             if (fragmentJson.length() > 81920 || instruction.length() > 10000)
                 return ResponseEntity.badRequest().body(Map.of("error", "Fragment or instruction is too large"));
-            String resultJson = orchestrator.runFragmentEdit(job, fragmentJson, instruction);
+            String resultJson = llm == null ? orchestrator.runFragmentEdit(job, fragmentJson, instruction)
+                    : llm.callWith(override, () -> orchestrator.runFragmentEdit(job, fragmentJson, instruction));
             JsonNode result = objectMapper.readTree(resultJson);
             return ResponseEntity.ok(Map.of("fragment", result));
         } catch (com.officemanipulator.exception.BudgetExceededException e) {
@@ -211,8 +225,10 @@ public class JobController {
             @RequestBody Map<String, Object> patchedPreviewData
     ) {
         try {
+            var override = takeOverride(patchedPreviewData);
             Job rebuildJob = documentEditService.createRebuildJob(id, patchedPreviewData);
             if (rebuildJob.getStatus() == JobStatus.PENDING) {
+                if (llm != null) llm.bindJob(rebuildJob.getId(), override);
                 documentEditService.processEditAsync(rebuildJob.getId(), id);
             }
             return ResponseEntity.accepted().body(Map.of("jobId", rebuildJob.getId().toString()));
@@ -266,6 +282,19 @@ public class JobController {
             }
         }
     }
+    /** Pulls the optional llm_provider/llm_api_key/llm_model override out of a request body (removing
+     * it, so it never reaches persisted job data); null when absent. Throws IllegalArgumentException. */
+    private com.officemanipulator.llm.LlmSelection takeOverride(Map<String, ?> body) {
+        if (body == null || llm == null) return null;
+        Object provider = body.remove("llm_provider"), key = body.remove("llm_api_key"), model = body.remove("llm_model");
+        return llm.resolveOverride(text(provider), text(key), text(model));
+    }
+
+    private static String text(Object value) {
+        if (value != null && !(value instanceof String)) throw new IllegalArgumentException("llm_* alanları metin olmalı.");
+        return (String) value;
+    }
+
     private boolean terminal(JobStatus status) {
         return status == JobStatus.DONE || status == JobStatus.FAILED || status == JobStatus.CANCELLED;
     }

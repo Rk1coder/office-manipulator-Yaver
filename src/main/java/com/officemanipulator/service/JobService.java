@@ -43,6 +43,10 @@ public class JobService {
     @Value("${app.storage.file-ttl-hours:72}")
     private long fileTtlHours;
 
+    /** Generation is the last step of a request's job chain; drop its in-memory LLM override then. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.LlmClientProvider llm;
+
     @org.springframework.beans.factory.annotation.Autowired
     public JobService(
             JobRepository jobRepository,
@@ -219,6 +223,7 @@ public class JobService {
             }
         } finally {
             cancellationRegistry.unregister(job.getId());
+            if (llm != null) llm.releaseJob(job.getId());
         }
     }
 
