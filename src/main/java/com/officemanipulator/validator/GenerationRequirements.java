@@ -10,6 +10,23 @@ import java.util.regex.Pattern;
 /** Checks objectively measurable requests before declaring generation successful. */
 public final class GenerationRequirements {
     private GenerationRequirements() {}
+
+    /** Images are generated (and paid for) before the script is written; a deck that drops them
+     * leaves the planned image areas empty, so every generated image must end up on a slide. */
+    private static void requireGeneratedImages(Job job, XMLSlideShow deck) throws Exception {
+        if (job.getImagePathsJson() == null || job.getImagePathsJson().isBlank()) return;
+        var images = new com.fasterxml.jackson.databind.ObjectMapper().readTree(job.getImagePathsJson());
+        if (images.isEmpty()) return;
+        long pictures = deck.getSlides().stream().flatMap(slide -> slide.getShapes().stream())
+                .filter(shape -> shape instanceof org.apache.poi.xslf.usermodel.XSLFPictureShape).count();
+        if (pictures < images.size()) {
+            var names = new java.util.ArrayList<String>();
+            images.fieldNames().forEachRemaining(index -> names.add("IMG_" + index));
+            throw new IllegalArgumentException("The generated images " + String.join(", ", names) + " must all appear in the deck"
+                    + " (slide.addImage({ path: process.env.IMG_<n>, ..., sizing: { type: 'cover', w, h } }) on the slide each was made for);"
+                    + " the deck contains " + pictures + " picture(s).");
+        }
+    }
     public static void validate(Job job, Path path) throws Exception {
         String request=job.getRequest()==null ? "" : job.getRequest().toLowerCase(Locale.forLanguageTag("tr"));
         boolean chart=request.matches("(?s).*(grafik|grafiğ|chart).*")
@@ -31,6 +48,7 @@ public final class GenerationRequirements {
                 if(count.find() && deck.getSlides().size()!=Integer.parseInt(count.group(1)))
                     throw new IllegalArgumentException("Requested slide count is " + count.group(1) + "; produced " + deck.getSlides().size());
                 if(chart && deck.getCharts().isEmpty()) throw new IllegalArgumentException("Requested editable numeric chart is missing; use pptxgenjs slide.addChart.");
+                requireGeneratedImages(job, deck);
                 if(request.contains("her slaytta") && request.contains("konuşmacı not"))
                     for(var slide:deck.getSlides()) {
                         if(slide.getNotes()==null || java.util.Arrays.stream(slide.getNotes().getPlaceholders()).noneMatch(p->p.getText()!=null && p.getText().strip().length()>20))

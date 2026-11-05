@@ -227,13 +227,16 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         long totalInputTokens  = 0;
         long totalOutputTokens = 0;
         Path outputPath = storageService.resolveOutputPath(job.getId(), job.getFormat());
-        // The last file that passed validation; a review-driven rewrite that fails falls back to it.
-        Path approved = outputPath.resolveSibling("approved-" + outputPath.getFileName());
+        // The best-reviewed version so far; shipped when a later rewrite is worse or fails.
+        Path best = outputPath.resolveSibling("best-" + outputPath.getFileName());
+        int bestScore = Integer.MAX_VALUE;
+        boolean currentIsBest = false;
+        int rewrites = 0;
         boolean succeeded = false;
         String lastError = "No tool attempts were configured";
         int failures = 0;
         boolean lastFailed = false;
-        int reviewsLeft = reviewable(job) ? reviewRounds : 0;
+        boolean review = reviewable(job) && reviewRounds > 0;
         // The format fixes the tool; forcing it stops models (notably Gemini) from answering with the
         // script as plain text instead of a tool call.
         String forced = job.getFormat() == null ? null : generationTool(job.getFormat());
@@ -278,28 +281,36 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             }
 
             messages.add(Message.toolResult(toolUse, toolResult));
+            currentIsBest = false; // the attempt (even a failed one) may have overwritten the file
 
             lastFailed = toolResult.startsWith("ERROR");
             if (lastFailed) { lastError = toolResult; failures++; continue; }
             succeeded = true;
-            if (reviewsLeft-- <= 0) break;
-            java.nio.file.Files.copy(outputPath, approved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (!review) break;
             long[] reviewUsage = new long[2];
-            Message feedback = reviewSlides(job, outputPath, reviewUsage);
+            SlideReview verdict = reviewSlides(job, outputPath, reviewUsage);
             // JobService rewrites the job's usage from this result, so review calls must be counted here.
             totalInputTokens += reviewUsage[0];
             totalOutputTokens += reviewUsage[1];
-            if (feedback == null) break;
-            messages.add(feedback);
+            if (verdict == null) break; // review unavailable: keep the best reviewed version, else this one
+            if (verdict.score() < bestScore) {
+                java.nio.file.Files.copy(outputPath, best, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                bestScore = verdict.score();
+                currentIsBest = true;
+            }
+            // Every rewrite is reviewed too, so a rewrite that made things worse is never what ships.
+            if (verdict.feedback() == null || rewrites >= reviewRounds) break;
+            rewrites++;
+            messages.add(verdict.feedback());
         }
 
         if (!succeeded) throw new IllegalStateException("All generation attempts failed: " + lastError);
-        if (java.nio.file.Files.exists(approved)) {
-            // The last attempt may have been a failed rewrite that overwrote the file; ship the approved one.
-            if (lastFailed || !java.nio.file.Files.exists(outputPath)) {
-                java.nio.file.Files.move(approved, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        if (java.nio.file.Files.exists(best)) {
+            if (!currentIsBest) {
+                log.info("Job {} ships its best-reviewed version (score {})", job.getId(), bestScore);
+                java.nio.file.Files.copy(best, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
-            java.nio.file.Files.deleteIfExists(approved);
+            java.nio.file.Files.deleteIfExists(best);
         }
         return new OrchestratorResult(
                 outputPath,
@@ -345,7 +356,11 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
      * returns a correction message (slides + defects) for the generator, or null when the deck is
      * approved or the review itself is unavailable — a review problem never fails the job.
      */
-    private Message reviewSlides(Job job, Path deck, long[] usage) {
+    /** {@code score} weighs high-severity defects 3×, medium 1× (lower is better); {@code feedback} is
+     * the rewrite request, or null when nothing blocking was found. */
+    private record SlideReview(int score, Message feedback) {}
+
+    private SlideReview reviewSlides(Job job, Path deck, long[] usage) {
         try {
             List<LlmClient.Image> slides = renderer.renderPptx(deck, MAX_REVIEW_SLIDES).stream()
                     .map(bytes -> new LlmClient.Image("image/jpeg", java.util.Base64.getEncoder().encodeToString(bytes))).toList();
@@ -361,23 +376,26 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             ToolCall verdict = review.firstToolCall("submit_slide_review");
             if (verdict == null) return null;
             var issues = new ArrayList<String>();
+            int score = 0;
             for (var issue : verdict.input().path("issues")) {
                 String severity = issue.path("severity").asText("low");
                 if (severity.equals("low")) continue;
+                score += severity.equals("high") ? 3 : 1;
                 issues.add("- Slide " + issue.path("slide").asInt() + " [" + severity + "]: " + issue.path("problem").asText()
                         + " → FIX: " + issue.path("fix").asText());
             }
-            log.info("Job {} visual review: approved={}, blocking issues={}", job.getId(), verdict.input().path("approved").asBoolean(), issues.size());
-            if (verdict.input().path("approved").asBoolean(false) && issues.isEmpty()) return null;
-            if (issues.isEmpty()) return null;
-            return Message.user("""
+            log.info("Job {} visual review: approved={}, blocking issues={}, score={}", job.getId(),
+                    verdict.input().path("approved").asBoolean(), issues.size(), score);
+            if (issues.isEmpty()) return new SlideReview(0, null);
+            return new SlideReview(score, Message.user("""
                     VISUAL REVIEW — the images above are how your previous script actually renders (image 1 = slide 1).
                     An art director found these defects:
                     %s
 
                     Call create_presentation again with the COMPLETE corrected script. Fix every listed defect, keep
-                    everything that already works (content, order, palette, layouts, images), and keep the
-                    // LAYOUT: comments.""".formatted(String.join("\n", issues)), slides);
+                    everything that already works (content, order, palette, layouts), and keep the // LAYOUT: comments.
+                    Keep every generated image (process.env.IMG_<n>) on its slide. Fix empty areas by enlarging the real
+                    content (type, cards, image, chart) — never by deleting content or images.""".formatted(String.join("\n", issues)), slides));
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Üretim iptal edildi", e);
             log.warn("Job {} visual review skipped: {}", job.getId(), e.getMessage());
