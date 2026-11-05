@@ -358,10 +358,12 @@ body{margin:0}
 .yv-info-eyebrow{margin:0;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:var(--ac)}
 .yv-info-title{margin:0;font-size:13.5px;font-weight:650;color:var(--tx)}
 .yv-info-desc{margin:0;font-size:12px;line-height:1.45;color:var(--mu);text-wrap:pretty}
-.yv-info-media{position:relative;height:66px;margin:8px 0 6px;transition:height .3s cubic-bezier(.2,.8,.2,1)}
-.yv-info-card:hover .yv-info-media,.yv-info-card:focus-within .yv-info-media{height:142px}
-.yv-info-shot{position:absolute;left:0;right:0;top:0;height:50px;box-sizing:border-box;border:1px solid var(--ln2);border-radius:7px;background:var(--sb);padding:6px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;z-index:calc(3 - var(--i));transform:translateY(calc(var(--i) * 7px)) scale(calc(1 - var(--i) * .05));transform-origin:top center;opacity:calc(1 - var(--i) * .25);transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}
-.yv-info-card:hover .yv-info-shot,.yv-info-card:focus-within .yv-info-shot{transform:translateY(calc(var(--i) * 46px)) rotate(calc((var(--i) - 1) * -1.2deg));opacity:1}
+.yv-info-media{position:relative;height:58px;margin:8px 0 6px;overflow:hidden;border-radius:7px 7px 0 0;transition:height .35s cubic-bezier(.2,.8,.2,1)}
+.yv-info-card:hover .yv-info-media,.yv-info-card:focus-within .yv-info-media{height:112px;overflow:visible}
+.yv-info-shot{position:absolute;left:6px;right:6px;top:0;height:82px;box-sizing:border-box;border:1px solid var(--ln2);border-radius:7px;background:var(--sb);padding:6px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;z-index:calc(3 - var(--i));transform-origin:50% 100%;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:transform .45s cubic-bezier(.2,.9,.25,1.15);transition-delay:calc(var(--i) * 35ms)}
+.yv-info-shot::after{content:"";position:absolute;left:8px;right:8px;bottom:8px;height:26px;opacity:.7;background:linear-gradient(var(--ac),var(--ac)) 0 0/30% 5px no-repeat,linear-gradient(var(--ln2),var(--ln2)) 0 11px/85% 4px no-repeat,linear-gradient(var(--ln2),var(--ln2)) 0 20px/62% 4px no-repeat}
+/* Hover: the stacked shots fan out like a hand of cards, spilling over the card edges. */
+.yv-info-card:hover .yv-info-shot,.yv-info-card:focus-within .yv-info-shot{transform:translate(calc(16px - var(--i) * 20px),calc(14px - var(--i) * 3px)) rotate(calc(5deg - var(--i) * 7deg)) scale(1.08)}
 .yv-info-shot-bar{display:flex;gap:3px}.yv-info-shot-bar i{width:5px;height:5px;border-radius:50%;background:var(--ln2)}
 .yv-info-shot b{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .yv-info-shot span:last-child{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
