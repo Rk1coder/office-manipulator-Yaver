@@ -42,11 +42,13 @@ public class FileController {
 
         String fileName = job.getFileName() != null
                 ? job.getFileName()
-                : "output." + job.getFormat().fileExtension();
+                : "Belge." + job.getFormat().fileExtension();
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(job.getFormat().contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                // RFC 6266/5987 encoding: names now carry Turkish characters, which a bare quoted filename can't.
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.attachment()
+                        .filename(fileName, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
                 .body(new PathResource(filePath));
     }
