@@ -123,7 +123,14 @@ public class AnthropicLlmClient implements LlmClient {
                     .build();
         }
         if (message.role() == LlmClient.Message.Role.USER) {
-            return MessageParam.builder().role(MessageParam.Role.USER).content(message.text()).build();
+            if (message.images().isEmpty()) return MessageParam.builder().role(MessageParam.Role.USER).content(message.text()).build();
+            List<ContentBlockParam> blocks = new ArrayList<>();
+            for (Image image : message.images()) {
+                blocks.add(ContentBlockParam.ofImage(ImageBlockParam.builder().source(Base64ImageSource.builder()
+                        .data(image.base64()).mediaType(Base64ImageSource.MediaType.of(image.mediaType())).build()).build()));
+            }
+            blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(message.text()).build()));
+            return MessageParam.builder().role(MessageParam.Role.USER).contentOfBlockParams(blocks).build();
         }
         List<ContentBlockParam> blocks = new ArrayList<>();
         if (message.text() != null) blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(message.text()).build()));

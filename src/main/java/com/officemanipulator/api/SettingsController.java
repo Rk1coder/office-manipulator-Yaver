@@ -56,7 +56,12 @@ public class SettingsController {
         return model.matches("[a-zA-Z0-9._:-]{1,128}") && !model.contains("..");
     }
 
-    public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled) {}
+    public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled,
+                                  String geminiInputPrice, String geminiOutputPrice) {
+        public SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled) {
+            this(claudeApiKey, model, geminiApiKey, geminiEnabled, null, null);
+        }
+    }
     /** {@code claudeApiKey} keeps its old name for the existing UI; it is the key of {@code provider}. */
     public record VerificationRequest(String claudeApiKey, String model, String provider) {
         public VerificationRequest(String claudeApiKey, String model) { this(claudeApiKey, model, null); }
@@ -77,6 +82,15 @@ public class SettingsController {
 
         if (body.geminiApiKey() != null) settingsService.set(GeminiImageService.KEY_API_KEY, body.geminiApiKey().isBlank() ? null : body.geminiApiKey());
         if (body.geminiEnabled() != null) settingsService.set(GeminiImageService.KEY_ENABLED, String.valueOf(body.geminiEnabled()));
+        for (var price : List.of(Map.entry(GeminiImageService.KEY_INPUT_PRICE, String.valueOf(body.geminiInputPrice())),
+                Map.entry(GeminiImageService.KEY_OUTPUT_PRICE, String.valueOf(body.geminiOutputPrice())))) {
+            if (price.getValue().equals("null")) continue;
+            String value = price.getValue().trim().replace(',', '.');
+            if (!value.isEmpty() && !value.matches("\\d{1,4}(\\.\\d{1,6})?")) {
+                return ResponseEntity.badRequest().body(ErrorResponse.of("Fiyat 0 ile 9999 arasında bir sayı olmalı (USD / milyon token)."));
+            }
+            settingsService.set(price.getKey(), value.isEmpty() ? null : value);
+        }
 
         return ResponseEntity.ok(currentView());
     }
@@ -122,6 +136,10 @@ public class SettingsController {
                 geminiImageService.isConfiguredFlag(),
                 geminiImageService.keyConfigured(),
                 geminiImageService.maskedApiKey(),
+                geminiImageService.keySharedWithLlm(),
+                geminiImageService.pricesConfigured(),
+                geminiImageService.inputPrice().toPlainString(),
+                geminiImageService.outputPrice().toPlainString(),
                 claudeClientProvider.defaultProvider().id(),
                 providerModels()
         );

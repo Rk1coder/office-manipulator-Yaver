@@ -1166,9 +1166,23 @@ body{margin:0}
             <label style="font-size:12.5px;font-weight:600">Gemini API key <span style="color:var(--mu);font-weight:400">(görsel üretim, opsiyonel)</span></label>
             <input type="password" value="{{ settingsGeminiKeyInput }}" sc-camel-on-change="{{ onSettingsGeminiKey }}" placeholder="{{ settingsGeminiKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
             <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:2px">
-              <input type="checkbox" checked="{{ settingsGeminiEnabledInput }}" sc-camel-on-change="{{ onSettingsGeminiEnabled }}"> Gemini görsel üretimini etkinleştir
+              <input type="checkbox" checked="{{ settingsGeminiEnabledInput }}" sc-camel-on-change="{{ onSettingsGeminiEnabled }}"> {{ settingsGeminiEnableLabel }}
             </label>
+            <sc-if value="{{ settingsGeminiKeyShared }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:12px;color:var(--ac);line-height:1.5">{{ settingsGeminiSharedText }}</span>
+            </sc-if>
           </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="font-size:12.5px;font-weight:600">{{ settingsGeminiPriceLabel }}</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <input type="text" inputmode="decimal" aria-label="{{ settingsGeminiInputPriceLabel }}" value="{{ settingsGeminiInputPrice }}" sc-camel-on-change="{{ onSettingsGeminiInputPrice }}" placeholder="{{ settingsGeminiInputPriceLabel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box">
+              <input type="text" inputmode="decimal" aria-label="{{ settingsGeminiOutputPriceLabel }}" value="{{ settingsGeminiOutputPrice }}" sc-camel-on-change="{{ onSettingsGeminiOutputPrice }}" placeholder="{{ settingsGeminiOutputPriceLabel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box">
+            </div>
+            <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsGeminiPriceHint }}</span>
+          </div>
+          <sc-if value="{{ settingsGeminiNeedsPrice }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--wns);border:1px solid var(--wn);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--tx)">{{ settingsGeminiNeedsPriceText }}</div>
+          </sc-if>
           <button sc-camel-on-click="{{ saveSettings }}" disabled="{{ settingsBusy }}" style="margin-top:4px;border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px">{{ settingsSaveLabel }}</button>
           <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
             <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
@@ -1640,7 +1654,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
     } catch (_) {}
   }
   async openSettings(button) {
@@ -1651,7 +1665,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
     } catch (error) { this.setState({ settingsError: error.message }); }
   }
   closeSettings() {
@@ -1689,11 +1703,12 @@ class Component extends DCLogic {
     try {
       const response = await fetch('/api/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geminiApiKey: s.settingsGeminiKeyInput.trim() || null, geminiEnabled: s.settingsGeminiEnabledInput })
+        body: JSON.stringify({ geminiApiKey: s.settingsGeminiKeyInput.trim() || null, geminiEnabled: s.settingsGeminiEnabledInput,
+          geminiInputPrice: s.settingsGeminiInputPrice, geminiOutputPrice: s.settingsGeminiOutputPrice })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Save failed');
-      this.setState({ settingsData: data, settingsGeminiKeyInput: '', settingsGeminiEnabledInput: data.geminiEnabled });
+      this.setState({ settingsData: data, settingsGeminiKeyInput: '', settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice) });
       this.showToast(this.state.lang === 'en' ? 'Image settings saved.' : 'Görsel ayarları kaydedildi.');
       this.fetchOfficeCapabilities();
     } catch (error) { this.setState({ settingsError: error.message }); }
@@ -1774,6 +1789,7 @@ class Component extends DCLogic {
     e.preventDefault();
     this.setState({ settingsTab: next }, () => { const el = document.getElementById('yv-tab-' + next); if (el) el.focus(); });
   }
+  priceText(value) { return value && Number(value) > 0 ? String(value) : ''; }
   isSuggestedModel(data, provider, model) {
     const list = data && data.providerModels && data.providerModels[provider] || [];
     return !model || list.includes(model);
@@ -2680,6 +2696,19 @@ class Component extends DCLogic {
         : (L === 'tr' ? 'İsteğe bağlı — görsel üretim için' : 'Optional — for image generation'),
       settingsGeminiEnabledInput: s.settingsGeminiEnabledInput,
       onSettingsGeminiEnabled: e => this.setState({ settingsGeminiEnabledInput: e.target.checked }),
+      settingsGeminiEnableLabel: L === 'tr' ? 'Gemini görsel üretimini etkinleştir' : 'Enable Gemini image generation',
+      settingsGeminiKeyShared: !!(s.settingsData && s.settingsData.geminiKeyShared),
+      settingsGeminiSharedText: L === 'tr' ? 'Ayrı anahtar girilmedi: Yapay zekâ sekmesindeki Gemini anahtarı kullanılacak.' : 'No separate key: the Gemini key from the AI provider tab will be used.',
+      settingsGeminiPriceLabel: L === 'tr' ? 'Görsel modeli fiyatı (USD / 1M token)' : 'Image model price (USD / 1M tokens)',
+      settingsGeminiInputPriceLabel: L === 'tr' ? 'Girdi' : 'Input',
+      settingsGeminiOutputPriceLabel: L === 'tr' ? 'Çıktı' : 'Output',
+      settingsGeminiInputPrice: s.settingsGeminiInputPrice || '',
+      settingsGeminiOutputPrice: s.settingsGeminiOutputPrice || '',
+      onSettingsGeminiInputPrice: e => this.setState({ settingsGeminiInputPrice: e.target.value }),
+      onSettingsGeminiOutputPrice: e => this.setState({ settingsGeminiOutputPrice: e.target.value }),
+      settingsGeminiPriceHint: L === 'tr' ? 'Bütçe sınırı görsel maliyetini bu fiyatlarla hesaplar. Güncel fiyatı Google AI fiyat sayfasından alın.' : 'The budget limit prices images with these rates. Take current prices from Google AI pricing.',
+      settingsGeminiNeedsPrice: !!(s.settingsData && s.settingsData.geminiEnabled && !s.settingsData.geminiPricesConfigured),
+      settingsGeminiNeedsPriceText: L === 'tr' ? 'Görsel üretimi açık ama fiyat girilmemiş; fiyatlar kaydedilene kadar sunumlar görselsiz üretilir.' : 'Image generation is on but no prices are set; presentations are produced without images until prices are saved.',
       openOfficeEditor: () => {
         if (!s.officeEnabled || !j || !j.id || j.status !== 'DONE' || j.expired) return;
         const isTextFormat = ['MD','JSON','XML'].includes(j.format);

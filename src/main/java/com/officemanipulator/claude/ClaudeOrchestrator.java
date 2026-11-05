@@ -48,6 +48,14 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     private long maxTokens;
     @Value("${app.claude.max-tool-turns}")
     private int maxToolTurns;
+    /** Render → review → rewrite rounds after a deck first succeeds (0 disables the visual review). */
+    @Value("${app.presentation.review-rounds:2}")
+    private int reviewRounds;
+    private static final int MAX_REVIEW_SLIDES = 24;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.office.SlideRenderer renderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private PresentationSkills skills;
     private String pricingModel;
     private BigDecimal inputPricePerMillion;
     private BigDecimal outputPricePerMillion;
@@ -75,7 +83,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     public OrchestratorResult run(Job job) throws Exception {
         List<Message> messages = new ArrayList<>();
         messages.add(buildUserMessage(job));
-        return runLoop(job, messages, SystemPrompts.MAIN);
+        return runLoop(job, messages, withSkills(job, SystemPrompts.MAIN));
     }
 
     public OrchestratorResult runEdit(Job job, String documentContext) throws Exception {
@@ -85,7 +93,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         content.append("\n\nEDIT INSTRUCTION: ").append(job.getRequest());
         content.append("\n\nOutput format: ").append(job.getFormat().generationFormat().name());
         messages.add(Message.user(content.toString()));
-        return runLoop(job, messages, SystemPrompts.EDIT);
+        return runLoop(job, messages, withSkills(job, SystemPrompts.EDIT));
     }
 
     /**
@@ -185,7 +193,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         List<Message> messages = new ArrayList<>(List.of(Message.user(content.toString())));
         long inputTokens = 0, outputTokens = 0;
         for (int attempt = 0; attempt < 2; attempt++) {
-            Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.PLAN, List.copyOf(messages),
+            Response response = billedRequest(job, new LlmClient.Request(withPlanSkills(job, SystemPrompts.PLAN), List.copyOf(messages),
                     List.of(toolRegistry.planTool(job.getFormat().name())), "submit_plan", maxTokens));
             inputTokens += response.inputTokens(); outputTokens += response.outputTokens();
             ToolCall plan = response.firstToolCall("submit_plan");
@@ -218,11 +226,16 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     private OrchestratorResult runLoop(Job job, List<Message> messages, String systemPrompt) throws Exception {
         long totalInputTokens  = 0;
         long totalOutputTokens = 0;
-        Path outputPath = null;
+        Path outputPath = storageService.resolveOutputPath(job.getId(), job.getFormat());
+        // The last file that passed validation; a review-driven rewrite that fails falls back to it.
+        Path approved = outputPath.resolveSibling("approved-" + outputPath.getFileName());
         boolean succeeded = false;
         String lastError = "No tool attempts were configured";
+        int failures = 0;
+        boolean lastFailed = false;
+        int reviewsLeft = reviewable(job) ? reviewRounds : 0;
 
-        for (int turn = 0; turn < maxToolTurns; turn++) {
+        for (int turn = 0; failures < maxToolTurns; turn++) {
             Response response = billedRequest(job, new LlmClient.Request(systemPrompt, List.copyOf(messages),
                     toolRegistry.allTools(), null, maxTokens));
 
@@ -233,14 +246,13 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
             ToolCall toolUse = response.firstToolCall(null);
             if (toolUse == null) {
+                if (succeeded) break; // a reviewed deck already exists; keep it rather than fail the job
                 throw new IllegalStateException("Model did not call a tool: " + (response.text() == null ? "(no content)" : response.text()));
             }
 
             String inputJson = objectMapper.writeValueAsString(toolUse.input());
 
             log.info("Job {} turn {}: model called {}", job.getId(), turn, toolUse.name());
-
-            outputPath = storageService.resolveOutputPath(job.getId(), job.getFormat());
 
             String toolResult;
             try {
@@ -255,17 +267,96 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
             messages.add(Message.toolResult(toolUse, toolResult));
 
-            if (!toolResult.startsWith("ERROR")) { succeeded = true; break; }
-            lastError = toolResult;
+            lastFailed = toolResult.startsWith("ERROR");
+            if (lastFailed) { lastError = toolResult; failures++; continue; }
+            succeeded = true;
+            if (reviewsLeft-- <= 0) break;
+            java.nio.file.Files.copy(outputPath, approved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            long[] reviewUsage = new long[2];
+            Message feedback = reviewSlides(job, outputPath, reviewUsage);
+            // JobService rewrites the job's usage from this result, so review calls must be counted here.
+            totalInputTokens += reviewUsage[0];
+            totalOutputTokens += reviewUsage[1];
+            if (feedback == null) break;
+            messages.add(feedback);
         }
 
         if (!succeeded) throw new IllegalStateException("All generation attempts failed: " + lastError);
+        if (java.nio.file.Files.exists(approved)) {
+            // The last attempt may have been a failed rewrite that overwrote the file; ship the approved one.
+            if (lastFailed || !java.nio.file.Files.exists(outputPath)) {
+                java.nio.file.Files.move(approved, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            java.nio.file.Files.deleteIfExists(approved);
+        }
         return new OrchestratorResult(
                 outputPath,
                 (int) totalInputTokens,
                 (int) totalOutputTokens,
                 computeCost(job, totalInputTokens, totalOutputTokens)
         );
+    }
+
+    /** Presentations get the design guides from presentation-skills/ appended to the system prompt. */
+    private String withSkills(Job job, String prompt) {
+        return skills != null && isPresentation(job) ? prompt + skills.generationGuide() : prompt;
+    }
+
+    private String withPlanSkills(Job job, String prompt) {
+        return skills != null && isPresentation(job) ? prompt + skills.planGuide() : prompt;
+    }
+
+    private static boolean isPresentation(Job job) {
+        return job.getFormat() != null && job.getFormat().generationFormat() == com.officemanipulator.domain.OutputFormat.PPTX;
+    }
+
+    private boolean reviewable(Job job) {
+        return renderer != null && isPresentation(job);
+    }
+
+    /**
+     * Visual review: renders the deck, has the model inspect the slide images against the plan, and
+     * returns a correction message (slides + defects) for the generator, or null when the deck is
+     * approved or the review itself is unavailable — a review problem never fails the job.
+     */
+    private Message reviewSlides(Job job, Path deck, long[] usage) {
+        try {
+            List<LlmClient.Image> slides = renderer.renderPptx(deck, MAX_REVIEW_SLIDES).stream()
+                    .map(bytes -> new LlmClient.Image("image/jpeg", java.util.Base64.getEncoder().encodeToString(bytes))).toList();
+            if (slides.isEmpty()) return null;
+            StringBuilder context = new StringBuilder("REQUEST:\n").append(job.getRequest());
+            if (job.getPlanJson() != null) context.append("\n\nAPPROVED PLAN:\n").append(job.getPlanJson());
+            context.append("\n\nThe ").append(slides.size()).append(" images above are the rendered slides, in order.");
+            String system = SystemPrompts.SLIDE_REVIEW + (skills == null ? "" : skills.reviewChecklist());
+            Response review = billedRequest(job, new LlmClient.Request(system, List.of(Message.user(context.toString(), slides)),
+                    List.of(toolRegistry.slideReviewTool()), "submit_slide_review", 4000));
+            usage[0] += review.inputTokens();
+            usage[1] += review.outputTokens();
+            ToolCall verdict = review.firstToolCall("submit_slide_review");
+            if (verdict == null) return null;
+            var issues = new ArrayList<String>();
+            for (var issue : verdict.input().path("issues")) {
+                String severity = issue.path("severity").asText("low");
+                if (severity.equals("low")) continue;
+                issues.add("- Slide " + issue.path("slide").asInt() + " [" + severity + "]: " + issue.path("problem").asText()
+                        + " → FIX: " + issue.path("fix").asText());
+            }
+            log.info("Job {} visual review: approved={}, blocking issues={}", job.getId(), verdict.input().path("approved").asBoolean(), issues.size());
+            if (verdict.input().path("approved").asBoolean(false) && issues.isEmpty()) return null;
+            if (issues.isEmpty()) return null;
+            return Message.user("""
+                    VISUAL REVIEW — the images above are how your previous script actually renders (image 1 = slide 1).
+                    An art director found these defects:
+                    %s
+
+                    Call create_presentation again with the COMPLETE corrected script. Fix every listed defect, keep
+                    everything that already works (content, order, palette, layouts, images), and keep the
+                    // LAYOUT: comments.""".formatted(String.join("\n", issues)), slides);
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Üretim iptal edildi", e);
+            log.warn("Job {} visual review skipped: {}", job.getId(), e.getMessage());
+            return null;
+        }
     }
 
     // ── private helpers ───────────────────────────────────────────────────────
@@ -324,7 +415,9 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         // A caller's own key bills the caller, not this server's budget.
         boolean billable = billing != null && !selection.requestKey();
         // UTF-8 bytes bound text token count; reserve extra space for message/tool framing.
-        long inputCeiling = request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 2L + 8192;
+        long images = request.messages().stream().mapToLong(m -> m.images().size()).sum();
+        // Images print as short placeholders in toString(); budget ~1600 tokens each (a 960×540 slide is well under).
+        long inputCeiling = request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 2L + images * 1600 + 8192;
         java.util.UUID reservation = billable ? billing.reserve(job.getId(), selection.provider().id(),
             computeCost(selection.model(), inputCeiling, request.maxTokens())) : null;
         Response response;
