@@ -346,6 +346,8 @@ body{margin:0}
 @media (prefers-reduced-motion:reduce){.yv-theme-icon,.yv-tab-panel{animation:none}.yv-gear svg{transition:none}}
 /* Sidebar info cards: a dismissible stack; the "screenshots" fan out on hover. */
 .yv-info{position:relative;flex:none;margin:0 12px 14px}
+/* Floating bottom-right; dialogs (z 26) and the onboarding popover stay above it. */
+.yv-info-float{position:fixed;right:20px;bottom:20px;width:272px;margin:0;z-index:25;filter:drop-shadow(0 14px 30px rgba(0,0,0,.28))}
 .yv-info[data-depth="1"]::after,.yv-info[data-depth="2"]::after,.yv-info[data-depth="2"]::before{content:"";position:absolute;left:8px;right:8px;bottom:-5px;height:12px;border:1px solid var(--ln);border-top:0;border-radius:0 0 10px 10px;background:var(--sf);opacity:.9}
 .yv-info[data-depth="2"]::before{left:16px;right:16px;bottom:-10px;opacity:.6}
 .yv-info-card{position:relative;z-index:1;background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:3px;animation:yvinfoin .32s cubic-bezier(.2,.8,.2,1) both}
@@ -464,28 +466,6 @@ body{margin:0}
         </sc-if>
       </sc-for>
     </div>
-    <sc-if value="{{ infoTop }}" hint-placeholder-val="{{ true }}">
-      <div class="yv-info" data-depth="{{ infoDepth }}">
-        <div class="yv-info-card" role="button" tabindex="0" aria-label="{{ infoNextLabel }}" title="{{ infoNextLabel }}" data-leaving="{{ infoLeaving }}" data-key="{{ infoTop.id }}" sc-camel-on-click="{{ cycleInfo }}" sc-camel-on-key-down="{{ cycleInfoKey }}">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <p class="yv-info-eyebrow">{{ infoTop.eyebrow }}</p>
-            <span style="display:flex;align-items:center;gap:6px"><span class="yv-info-pos">{{ infoTop.pos }}</span><button type="button" class="yv-info-x" aria-label="{{ infoHideLabel }}" title="{{ infoHideLabel }}" sc-camel-on-click="{{ hideInfo }}">✕</button></span>
-          </div>
-          <p class="yv-info-title">{{ infoTop.title }}</p>
-          <p class="yv-info-desc">{{ infoTop.desc }}</p>
-          <div class="yv-info-media" aria-hidden="true">
-            <sc-for list="{{ infoTop.media }}" as="m" hint-placeholder-count="3">
-              <div class="yv-info-shot" style="--i:{{ m.i }}"><img src="{{ m.src }}" alt="" decoding="async"></div>
-            </sc-for>
-          </div>
-          <button type="button" class="yv-info-cta" sc-camel-on-click="{{ infoGo }}"><span aria-hidden="true">→</span><span>{{ infoTop.go }}</span></button>
-          <div class="yv-info-foot">
-            <span class="yv-info-hint">{{ infoNextLabel }}</span>
-            <button type="button" class="yv-info-go" sc-camel-on-click="{{ openInfoTop }}">{{ infoDetailLabel }} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
-          </div>
-        </div>
-      </div>
-    </sc-if>
     <div style="border-top:1px solid var(--ln);padding:14px 16px;display:flex;flex-direction:column;gap:12px">
       <sc-if value="{{ infoHidden }}" hint-placeholder-val="{{ false }}">
         <button type="button" sc-camel-on-click="{{ showInfo }}" style="border:0;background:transparent;color:var(--mu);font:inherit;font-size:12px;cursor:pointer;padding:0;text-align:left;display:flex;align-items:center;gap:6px" style-hover="color:var(--tx)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>{{ infoGuideLabel }}</button>
@@ -1307,6 +1287,28 @@ body{margin:0}
     </div>
   </div>
 </sc-if>
+    <sc-if value="{{ infoTop }}" hint-placeholder-val="{{ true }}">
+      <div class="yv-info yv-info-float" data-depth="{{ infoDepth }}">
+        <div class="yv-info-card" role="button" tabindex="0" aria-label="{{ infoNextLabel }}" title="{{ infoNextLabel }}" data-leaving="{{ infoLeaving }}" data-key="{{ infoTop.id }}" sc-camel-on-click="{{ cycleInfo }}" sc-camel-on-key-down="{{ cycleInfoKey }}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <p class="yv-info-eyebrow">{{ infoTop.eyebrow }}</p>
+            <span style="display:flex;align-items:center;gap:6px"><span class="yv-info-pos">{{ infoTop.pos }}</span><button type="button" class="yv-info-x" aria-label="{{ infoHideLabel }}" title="{{ infoHideLabel }}" sc-camel-on-click="{{ hideInfo }}">✕</button></span>
+          </div>
+          <p class="yv-info-title">{{ infoTop.title }}</p>
+          <p class="yv-info-desc">{{ infoTop.desc }}</p>
+          <div class="yv-info-media" aria-hidden="true">
+            <sc-for list="{{ infoTop.media }}" as="m" hint-placeholder-count="3">
+              <div class="yv-info-shot" style="--i:{{ m.i }}"><img src="{{ m.src }}" alt="" decoding="async"></div>
+            </sc-for>
+          </div>
+          <button type="button" class="yv-info-cta" sc-camel-on-click="{{ infoGo }}"><span aria-hidden="true">→</span><span>{{ infoTop.go }}</span></button>
+          <div class="yv-info-foot">
+            <span class="yv-info-hint">{{ infoNextLabel }}</span>
+            <button type="button" class="yv-info-go" sc-camel-on-click="{{ openInfoTop }}">{{ infoDetailLabel }} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
 <sc-if value="{{ guideOpen }}" hint-placeholder-val="{{ false }}">
   <div role="dialog" aria-label="Kullanım rehberi" style="position:fixed;right:20px;bottom:20px;max-width:320px;width:calc(100% - 40px);background:var(--sf);border:1px solid var(--ln);border-radius:12px;padding:16px;box-shadow:0 12px 32px rgba(0,0,0,.25);z-index:29;display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;align-items:center;justify-content:space-between">
@@ -2916,14 +2918,16 @@ class Component extends DCLogic {
       apiHowToLinkUrl: this.providerMeta(s.settingsProviderInput).url,
       ...(() => {
         const cards = this.infoCards();
-        const top = s.infoHidden ? null : cards[s.infoIndex % cards.length];
+        // Only on the app screen, wide enough not to cover the composer, and not over the editor/viewer/onboarding.
+        const fits = (s.view || this.props.startOn || 'landing') !== 'landing' && s.w >= 900 && !s.officeJobId && !s.viewer && !s.guideOpen;
+        const top = s.infoHidden || !fits ? null : cards[s.infoIndex % cards.length];
         const open = cards.find(c => c.id === s.infoOpen);
         const stop = e => { if (e && e.stopPropagation) e.stopPropagation(); };
         return {
           infoTop: top ? { ...top, pos: (s.infoIndex % cards.length + 1) + '/' + cards.length, media: [1, 2, 3].map(n => ({ src: 'info/' + top.id + '-' + n + '.jpg', i: n - 1 })) } : null,
           infoDepth: '2',
           infoLeaving: s.infoLeaving,
-          infoHidden: s.infoHidden,
+          infoHidden: s.infoHidden || s.w < 900,
           infoOpen: !!open,
           infoPanel: open || cards[0],
           infoTabs: cards.map(c => ({ title: c.title, active: c.id === s.infoOpen, select: () => this.setState({ infoOpen: c.id }) })),
@@ -2937,7 +2941,7 @@ class Component extends DCLogic {
           infoGo: e => { stop(e); top && this.infoGo(top, e && e.currentTarget); },
           openInfoTop: e => { stop(e); top && this.setState({ infoOpen: top.id }); },
           hideInfo: e => { stop(e); this.setInfoHidden(true); },
-          showInfo: () => this.setInfoHidden(false),
+          showInfo: () => s.w < 900 ? this.setState({ infoOpen: cards[s.infoIndex % cards.length].id, navOpen: false }) : this.setInfoHidden(false),
           closeInfo: () => this.setState({ infoOpen: null }),
           infoBackdrop: e => { if (e.target === e.currentTarget) this.setState({ infoOpen: null }); }
         };
