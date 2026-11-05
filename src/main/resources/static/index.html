@@ -319,7 +319,27 @@ body{margin:0}
 @keyframes yvmoonin{from{opacity:0;transform:scale(.55) rotate(-25deg)}to{opacity:1;transform:none}}
 /* Theme switch reveal: the new theme grows as a circle from the toggle (see toggleTheme). */
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
-@media (prefers-reduced-motion:reduce){.yv-theme-icon{animation:none}}
+/* Settings: gear matches the theme toggle's icon entrance and turns on hover/press. */
+.yv-gear{animation-name:yvmoonin}
+.yv-gear svg{transition:transform .33s ease-out}
+.yv-gear-btn:hover .yv-gear svg{transform:rotate(60deg)}
+.yv-gear-btn:active .yv-gear svg{transform:rotate(120deg)}
+/* Settings dialog: vertical "underline" tabs (left rail + active indicator), horizontal on narrow screens. */
+.yv-settings-body{display:flex;gap:24px;padding:20px 22px 22px}
+.yv-tabs-list{display:flex;flex-direction:column;gap:2px;width:176px;flex:none;align-self:flex-start;border-left:1px solid var(--ln)}
+.yv-tab{display:flex;align-items:center;gap:10px;justify-content:flex-start;margin-left:-1px;border:0;border-left:2px solid transparent;background:transparent;color:var(--mu);font:inherit;font-size:13px;font-weight:500;text-align:left;padding:8px 12px;cursor:pointer;border-radius:0 6px 6px 0;transition:color .15s,background .15s,border-color .15s;white-space:nowrap}
+.yv-tab:hover{color:var(--tx);background:var(--sb)}
+.yv-tab[data-active="true"]{color:var(--tx);border-left-color:var(--ac)}
+.yv-tab:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+.yv-tab-panel{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;animation:yvin .2s ease-out both}
+@media (max-width:640px){
+  .yv-settings-body{flex-direction:column;gap:16px;padding:16px}
+  .yv-tabs-list{flex-direction:row;width:auto;align-self:stretch;border-left:0;border-bottom:1px solid var(--ln);overflow-x:auto}
+  .yv-tabs-list{scrollbar-width:none}.yv-tabs-list::-webkit-scrollbar{display:none}
+  .yv-tab{margin:0 0 -1px;border-left:0;border-bottom:2px solid transparent;border-radius:6px 6px 0 0}
+  .yv-tab[data-active="true"]{border-bottom-color:var(--ac)}
+}
+@media (prefers-reduced-motion:reduce){.yv-theme-icon,.yv-tab-panel{animation:none}.yv-gear svg{transition:none}}
 </style>
 </helmet>
 <div data-yv="{{ theme }}" style="height:100vh;display:flex;background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.5;overflow:hidden">
@@ -429,8 +449,8 @@ body{margin:0}
           <sc-if value="{{ themeIsDark }}" hint-placeholder-val="{{ true }}"><span class="yv-theme-icon yv-theme-sun"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span></sc-if><sc-if value="{{ themeIsLight }}" hint-placeholder-val="{{ false }}"><span class="yv-theme-icon yv-theme-moon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span></sc-if>{{ themeLabel }}
         </button>
       </div>
-      <button sc-camel-on-click="{{ openSettings }}" style="border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px" style-hover="border-color:var(--ln2)">
-        ⚙ {{ settingsLabel }}
+      <button type="button" class="yv-gear-btn" sc-camel-on-click="{{ openSettings }}" aria-label="{{ settingsLabel }}" style="border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px" style-hover="border-color:var(--ln2)">
+        <span class="yv-theme-icon yv-gear"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>{{ settingsLabel }}
       </button>
     </div>
   </aside>
@@ -1055,77 +1075,124 @@ body{margin:0}
 </sc-if>
 
 <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
-  <div role="dialog" aria-modal="true" aria-label="Ayarlar" style="position:fixed;inset:0;z-index:26;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--sf);border-radius:12px;max-width:480px;width:100%;max-height:90vh;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:16px;font-weight:650">{{ settingsLabel }}</span>
+  <div role="dialog" aria-modal="true" aria-label="{{ settingsLabel }}" style="position:fixed;inset:0;z-index:26;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:20px">
+    <div class="yv-settings" style="background:var(--sf);border:1px solid var(--ln);border-radius:12px;max-width:720px;width:100%;max-height:90vh;overflow:auto;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--ln)">
+        <span style="font-size:16px;font-weight:650;display:flex;align-items:center;gap:8px"><span class="yv-gear" style="display:inline-flex;color:var(--ac)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>{{ settingsLabel }}</span>
         <button sc-camel-on-click="{{ closeSettings }}" disabled="{{ settingsBusy }}" aria-label="Kapat" style="border:1px solid var(--ln);background:transparent;color:var(--mu);border-radius:6px;width:28px;height:28px;cursor:pointer">✕</button>
       </div>
-      <sc-if value="{{ settingsActivated }}" hint-placeholder-val="{{ false }}">
-        <div role="status" aria-live="polite" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px 4px;text-align:center">
-          <span aria-hidden="true" style="display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--sb);color:var(--ac);font-size:30px">✓</span>
-          <h2 style="margin:0;font-size:24px">{{ settingsActivatedTitle }}</h2>
-          <p style="margin:0;color:var(--mu);font-size:13px;line-height:1.6">{{ settingsActivatedText }}</p>
-          <span style="font-family:monospace;font-size:12px;color:var(--mu)">{{ settingsModelInput }}</span>
-          <button sc-camel-on-click="{{ closeSettings }}" style="width:100%;border:1px solid var(--acb);background:var(--acb);color:#fff;border-radius:8px;padding:12px;font:inherit;font-weight:600;cursor:pointer">{{ settingsContinueLabel }}</button>
-        </div>
-      </sc-if>
-      <sc-if value="{{ settingsFormVisible }}" hint-placeholder-val="{{ true }}">
-      <div style="display:flex;flex-direction:column;gap:16px">
-      <span style="align-self:flex-start;display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:{{ apiStatusColor }};border:1px solid {{ apiStatusColor }};border-radius:999px;padding:3px 10px">
-        <span style="width:6px;height:6px;border-radius:50%;background:{{ apiStatusColor }}"></span>{{ apiStatusLabel }}
-      </span>
-      <sc-if value="{{ settingsNeedsKeyWarning }}" hint-placeholder-val="{{ false }}">
-        <div style="background:var(--dgs);border:1px solid var(--dg);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--tx)">{{ settingsNeedsKeyWarningText }}</div>
-      </sc-if>
-      <p style="margin:0;font-size:12.5px;color:var(--mu);line-height:1.5">{{ settingsRecommendNote }}</p>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="font-size:12.5px;font-weight:600">{{ settingsProviderLabel }}</label>
-        <select aria-label="{{ settingsProviderLabel }}" disabled="{{ settingsBusy }}" value="{{ settingsProviderInput }}" sc-camel-on-change="{{ onSettingsProvider }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-          <sc-for list="{{ settingsProviderOptions }}" as="po" hint-placeholder-count="3">
-            <option value="{{ po.value }}">{{ po.label }}</option>
-          </sc-for>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="font-size:12.5px;font-weight:600">{{ settingsKeyLabel }}</label>
-        <input type="password" aria-label="{{ settingsKeyLabel }}" autocomplete="off" disabled="{{ settingsBusy }}" value="{{ settingsClaudeKeyInput }}" sc-camel-on-change="{{ onSettingsClaudeKey }}" placeholder="{{ settingsClaudeKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-      </div>
-      <div style="background:var(--sb);border:1px solid var(--ln);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
-        <span style="font-size:12.5px;font-weight:650">{{ apiHowToTitle }}</span>
-        <ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:var(--mu)">
-          <sc-for list="{{ apiHowToSteps }}" as="hs" hint-placeholder-count="4">
-            <li>{{ hs }}</li>
-          </sc-for>
-        </ol>
-        <a href="{{ apiHowToLinkUrl }}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;align-self:flex-start">{{ apiHowToLinkLabel }} ↗</a>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="font-size:12.5px;font-weight:600">Model</label>
-        <select aria-label="Model" disabled="{{ settingsBusy }}" value="{{ settingsModelSelectValue }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-          <sc-for list="{{ settingsModelOptions }}" as="mo" hint-placeholder-count="3">
-            <option value="{{ mo.value }}">{{ mo.label }}</option>
-          </sc-for>
-        </select>
-        <sc-if value="{{ settingsModelCustom }}" hint-placeholder-val="{{ false }}">
-        <input type="text" aria-label="{{ settingsModelCustomLabel }}" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModelText }}" placeholder="{{ settingsModelPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-        <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsModelHint }}</span>
+      <div style="padding:0 22px">
+        <sc-if value="{{ settingsActivated }}" hint-placeholder-val="{{ false }}">
+          <div role="status" aria-live="polite" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px 4px;text-align:center">
+            <span aria-hidden="true" style="display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--sb);color:var(--ac);font-size:30px">✓</span>
+            <h2 style="margin:0;font-size:24px">{{ settingsActivatedTitle }}</h2>
+            <p style="margin:0;color:var(--mu);font-size:13px;line-height:1.6">{{ settingsActivatedText }}</p>
+            <span style="font-family:monospace;font-size:12px;color:var(--mu)">{{ settingsModelInput }}</span>
+            <button sc-camel-on-click="{{ closeSettings }}" style="width:100%;border:1px solid var(--acb);background:var(--acb);color:#fff;border-radius:8px;padding:12px;font:inherit;font-weight:600;cursor:pointer">{{ settingsContinueLabel }}</button>
+          </div>
         </sc-if>
       </div>
-      <button sc-camel-on-click="{{ verifySettings }}" disabled="{{ settingsVerifyDisabled }}" style="border:1px solid var(--acb);background:var(--acb);color:#fff;border-radius:7px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:42px">{{ settingsVerifyLabel }}</button>
-      <p style="margin:0;color:var(--mu);font-size:12px;line-height:1.5">{{ settingsVerifyNote }}</p>
-      <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
-        <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
-      </sc-if>
-      <div style="height:1px;background:var(--ln)"></div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="font-size:12.5px;font-weight:600">Gemini API key <span style="color:var(--mu);font-weight:400">(görsel üretim, opsiyonel)</span></label>
-        <input type="password" value="{{ settingsGeminiKeyInput }}" sc-camel-on-change="{{ onSettingsGeminiKey }}" placeholder="{{ settingsGeminiKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:2px">
-          <input type="checkbox" checked="{{ settingsGeminiEnabledInput }}" sc-camel-on-change="{{ onSettingsGeminiEnabled }}"> Gemini görsel üretimini etkinleştir
-        </label>
-      </div>
-      <button sc-camel-on-click="{{ saveSettings }}" disabled="{{ settingsBusy }}" style="margin-top:4px;border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px">{{ settingsSaveLabel }}</button>
+      <sc-if value="{{ settingsFormVisible }}" hint-placeholder-val="{{ true }}">
+      <div class="yv-settings-body">
+        <div role="tablist" aria-orientation="{{ settingsTabOrientation }}" aria-label="{{ settingsLabel }}" class="yv-tabs-list">
+          <button type="button" role="tab" id="yv-tab-ai" aria-controls="yv-panel-ai" aria-selected="{{ settingsTab_ai }}" data-active="{{ settingsTab_ai }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_ai }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span>{{ settingsTabAiLabel }}</span></button>
+          <button type="button" role="tab" id="yv-tab-images" aria-controls="yv-panel-images" aria-selected="{{ settingsTab_images }}" data-active="{{ settingsTab_images }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_images }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>{{ settingsTabImagesLabel }}</span></button>
+          <button type="button" role="tab" id="yv-tab-look" aria-controls="yv-panel-look" aria-selected="{{ settingsTab_look }}" data-active="{{ settingsTab_look }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_look }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg><span>{{ settingsTabLookLabel }}</span></button>
+        </div>
+        <sc-if value="{{ settingsTab_ai }}" hint-placeholder-val="{{ true }}">
+        <div role="tabpanel" id="yv-panel-ai" aria-labelledby="yv-tab-ai" class="yv-tab-panel">
+          <div>
+            <p style="margin:0;font-size:14px;font-weight:650">{{ settingsTabAiTitle }}</p>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--mu);line-height:1.5">{{ settingsTabAiDesc }}</p>
+          </div>
+          <div style="height:1px;background:var(--ln)"></div>
+          <span style="align-self:flex-start;display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:{{ apiStatusColor }};border:1px solid {{ apiStatusColor }};border-radius:999px;padding:3px 10px">
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ apiStatusColor }}"></span>{{ apiStatusLabel }}
+          </span>
+          <sc-if value="{{ settingsNeedsKeyWarning }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--dgs);border:1px solid var(--dg);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--tx)">{{ settingsNeedsKeyWarningText }}</div>
+          </sc-if>
+          <p style="margin:0;font-size:12.5px;color:var(--mu);line-height:1.5">{{ settingsRecommendNote }}</p>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="font-size:12.5px;font-weight:600">{{ settingsProviderLabel }}</label>
+            <select aria-label="{{ settingsProviderLabel }}" disabled="{{ settingsBusy }}" value="{{ settingsProviderInput }}" sc-camel-on-change="{{ onSettingsProvider }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+              <sc-for list="{{ settingsProviderOptions }}" as="po" hint-placeholder-count="3">
+                <option value="{{ po.value }}">{{ po.label }}</option>
+              </sc-for>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="font-size:12.5px;font-weight:600">{{ settingsKeyLabel }}</label>
+            <input type="password" aria-label="{{ settingsKeyLabel }}" autocomplete="off" disabled="{{ settingsBusy }}" value="{{ settingsClaudeKeyInput }}" sc-camel-on-change="{{ onSettingsClaudeKey }}" placeholder="{{ settingsClaudeKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+          </div>
+          <div style="background:var(--sb);border:1px solid var(--ln);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:12.5px;font-weight:650">{{ apiHowToTitle }}</span>
+            <ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:var(--mu)">
+              <sc-for list="{{ apiHowToSteps }}" as="hs" hint-placeholder-count="4">
+                <li>{{ hs }}</li>
+              </sc-for>
+            </ol>
+            <a href="{{ apiHowToLinkUrl }}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;align-self:flex-start">{{ apiHowToLinkLabel }} ↗</a>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="font-size:12.5px;font-weight:600">Model</label>
+            <select aria-label="Model" disabled="{{ settingsBusy }}" value="{{ settingsModelSelectValue }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+              <sc-for list="{{ settingsModelOptions }}" as="mo" hint-placeholder-count="3">
+                <option value="{{ mo.value }}">{{ mo.label }}</option>
+              </sc-for>
+            </select>
+            <sc-if value="{{ settingsModelCustom }}" hint-placeholder-val="{{ false }}">
+            <input type="text" aria-label="{{ settingsModelCustomLabel }}" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModelText }}" placeholder="{{ settingsModelPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+            <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsModelHint }}</span>
+            </sc-if>
+          </div>
+          <button sc-camel-on-click="{{ verifySettings }}" disabled="{{ settingsVerifyDisabled }}" style="border:1px solid var(--acb);background:var(--acb);color:#fff;border-radius:7px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:42px">{{ settingsVerifyLabel }}</button>
+          <p style="margin:0;color:var(--mu);font-size:12px;line-height:1.5">{{ settingsVerifyNote }}</p>
+          <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
+            <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
+          </sc-if>
+        </div>
+        </sc-if>
+        <sc-if value="{{ settingsTab_images }}" hint-placeholder-val="{{ false }}">
+        <div role="tabpanel" id="yv-panel-images" aria-labelledby="yv-tab-images" class="yv-tab-panel">
+          <div>
+            <p style="margin:0;font-size:14px;font-weight:650">{{ settingsTabImagesTitle }}</p>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--mu);line-height:1.5">{{ settingsTabImagesDesc }}</p>
+          </div>
+          <div style="height:1px;background:var(--ln)"></div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="font-size:12.5px;font-weight:600">Gemini API key <span style="color:var(--mu);font-weight:400">(görsel üretim, opsiyonel)</span></label>
+            <input type="password" value="{{ settingsGeminiKeyInput }}" sc-camel-on-change="{{ onSettingsGeminiKey }}" placeholder="{{ settingsGeminiKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:2px">
+              <input type="checkbox" checked="{{ settingsGeminiEnabledInput }}" sc-camel-on-change="{{ onSettingsGeminiEnabled }}"> Gemini görsel üretimini etkinleştir
+            </label>
+          </div>
+          <button sc-camel-on-click="{{ saveSettings }}" disabled="{{ settingsBusy }}" style="margin-top:4px;border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px">{{ settingsSaveLabel }}</button>
+          <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
+            <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
+          </sc-if>
+        </div>
+        </sc-if>
+        <sc-if value="{{ settingsTab_look }}" hint-placeholder-val="{{ false }}">
+        <div role="tabpanel" id="yv-panel-look" aria-labelledby="yv-tab-look" class="yv-tab-panel">
+          <div>
+            <p style="margin:0;font-size:14px;font-weight:650">{{ settingsTabLookTitle }}</p>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--mu);line-height:1.5">{{ settingsTabLookDesc }}</p>
+          </div>
+          <div style="height:1px;background:var(--ln)"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--ln);border-radius:8px;padding:10px 12px">
+            <div><p style="margin:0;font-size:13px;font-weight:600">{{ settingsThemeTitle }}</p><p style="margin:2px 0 0;font-size:12px;color:var(--mu)">{{ themeLabel }}</p></div>
+            <button type="button" sc-camel-on-click="{{ toggleTheme }}" title="{{ themeSwitchLabel }}" aria-label="{{ themeSwitchLabel }}" style="border:1px solid var(--ln2);background:var(--bg);color:var(--tx);border-radius:999px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center"><sc-if value="{{ themeIsDark }}" hint-placeholder-val="{{ true }}"><span class="yv-theme-icon yv-theme-sun"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span></sc-if><sc-if value="{{ themeIsLight }}" hint-placeholder-val="{{ false }}"><span class="yv-theme-icon yv-theme-moon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span></sc-if></button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--ln);border-radius:8px;padding:10px 12px">
+            <div><p style="margin:0;font-size:13px;font-weight:600">{{ settingsLangTitle }}</p><p style="margin:2px 0 0;font-size:12px;color:var(--mu)">{{ settingsLangValue }}</p></div>
+            <div style="display:flex;border:1px solid var(--ln2);border-radius:6px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:11.5px">
+              <button type="button" sc-camel-on-click="{{ setTr }}" style="border:0;padding:6px 10px;cursor:pointer;font:inherit;background:{{ trBg }};color:{{ trColor }}">TR</button>
+              <button type="button" sc-camel-on-click="{{ setEn }}" style="border:0;border-left:1px solid var(--ln2);padding:6px 10px;cursor:pointer;font:inherit;background:{{ enBg }};color:{{ enColor }}">EN</button>
+            </div>
+          </div>
+        </div>
+        </sc-if>
       </div>
       </sc-if>
     </div>
@@ -1362,7 +1429,7 @@ const numOf = x => parseFloat(String(x).replace('−', '-').replace(/\s/g, '').r
 const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 class Component extends DCLogic {
-  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
+  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsTab: 'ai', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
   timers = [];
   epoch = 0;
   previewEpoch = 0;
@@ -1574,9 +1641,11 @@ class Component extends DCLogic {
       this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
     } catch (_) {}
   }
-  async openSettings() {
+  async openSettings(button) {
     if (this.state.settingsVerifying || this.state.settingsSaving) return;
-    this.setState({ settingsOpen: true, settingsActivated: false, settingsError: '' });
+    const patch = { settingsOpen: true, settingsActivated: false, settingsError: '', settingsTab: 'ai' };
+    // Same reveal as the theme toggle: the dialog grows as a circle from the gear button.
+    this.circleReveal(button, () => new Promise(done => this.setState(patch, done)), 450);
     try {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
@@ -1661,6 +1730,11 @@ class Component extends DCLogic {
       document.querySelectorAll('[data-yv]').forEach(el => el.setAttribute('data-yv', next));
       this.setState({ theme: next });
     };
+    this.circleReveal(button, apply, 700);
+  }
+  /** Runs {@code apply} (sync or returning a promise that resolves once rendered) inside a View
+   * Transition and reveals the result as a circle growing from {@code button}'s centre. */
+  circleReveal(button, apply, duration) {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!document.startViewTransition || !button || reduce) { apply(); return; }
     const { left, top, width, height } = button.getBoundingClientRect();
@@ -1669,8 +1743,17 @@ class Component extends DCLogic {
     document.startViewTransition(apply).ready.then(() => {
       document.documentElement.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-        { duration: 700, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' });
+        { duration, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' });
     }).catch(() => {});
+  }
+  // Vertical tablist keyboard model (WAI-ARIA): arrows move and focus, Home/End jump.
+  settingsTabKey(e) {
+    const order = ['ai', 'images', 'look'], i = order.indexOf(this.state.settingsTab);
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    const next = step ? order[(i + step + order.length) % order.length] : e.key === 'Home' ? order[0] : e.key === 'End' ? order[order.length - 1] : null;
+    if (!next) return;
+    e.preventDefault();
+    this.setState({ settingsTab: next }, () => { const el = document.getElementById('yv-tab-' + next); if (el) el.focus(); });
   }
   isSuggestedModel(data, provider, model) {
     const list = data && data.providerModels && data.providerModels[provider] || [];
@@ -2483,7 +2566,25 @@ class Component extends DCLogic {
         ? (L === 'tr' ? this.providerMeta(s.settingsData.llmProvider).short + ' anahtarı ve model erişimi doğrulandı. Ayarlar için tıklayın.' : this.providerMeta(s.settingsData.llmProvider).short + ' key and model access verified. Click for settings.')
         : (L === 'tr' ? 'Ayarlar bölümünde Kontrol et düğmesiyle API anahtarınızı doğrulayın.' : 'Verify your API key with Check in Settings.'),
       settingsOpen: s.settingsOpen,
-      openSettings: () => this.openSettings(),
+      openSettings: e => this.openSettings(e && e.currentTarget),
+      settingsTab_ai: s.settingsTab === 'ai', settingsTab_images: s.settingsTab === 'images', settingsTab_look: s.settingsTab === 'look',
+      settingsSelect_ai: () => this.setState({ settingsTab: 'ai' }),
+      settingsSelect_images: () => this.setState({ settingsTab: 'images' }),
+      settingsSelect_look: () => this.setState({ settingsTab: 'look' }),
+      onSettingsTabKey: e => this.settingsTabKey(e),
+      settingsTabOrientation: s.w < 640 ? 'horizontal' : 'vertical',
+      settingsTabAiLabel: L === 'tr' ? 'Yapay zekâ' : 'AI provider',
+      settingsTabImagesLabel: L === 'tr' ? 'Görsel üretim' : 'Image generation',
+      settingsTabLookLabel: L === 'tr' ? 'Görünüm' : 'Appearance',
+      settingsTabAiTitle: L === 'tr' ? 'Yapay zekâ sağlayıcısı' : 'AI provider',
+      settingsTabAiDesc: L === 'tr' ? 'Belge üretimi için kendi API anahtarınızı ve modelinizi seçin.' : 'Choose your own API key and model for document generation.',
+      settingsTabImagesTitle: L === 'tr' ? 'Görsel üretim' : 'Image generation',
+      settingsTabImagesDesc: L === 'tr' ? 'Sunumlar için Gemini ile görsel üretimi (isteğe bağlı).' : 'Optional Gemini image generation for presentations.',
+      settingsTabLookTitle: L === 'tr' ? 'Görünüm' : 'Appearance',
+      settingsTabLookDesc: L === 'tr' ? 'Tema ve arayüz dili.' : 'Theme and interface language.',
+      settingsThemeTitle: L === 'tr' ? 'Tema' : 'Theme',
+      settingsLangTitle: L === 'tr' ? 'Dil' : 'Language',
+      settingsLangValue: L === 'tr' ? 'Türkçe' : 'English',
       closeSettings: () => this.closeSettings(),
       saveSettings: () => this.saveSettings(),
       verifySettings: () => this.verifySettings(),
@@ -2491,7 +2592,7 @@ class Component extends DCLogic {
       settingsBusy: s.settingsSaving || s.settingsVerifying,
       settingsVerifyDisabled: s.settingsSaving || s.settingsVerifying || !(s.settingsModelInput || '').trim()
         || !(s.settingsClaudeKeyInput.trim() || (s.settingsData && s.settingsData.claudeKeyConfigured && s.settingsProviderInput === s.settingsData.llmProvider)),
-      settingsProviderLabel: L === 'tr' ? 'Yapay zekâ sağlayıcısı' : 'AI provider',
+      settingsProviderLabel: L === 'tr' ? 'Sağlayıcı' : 'Provider',
       settingsProviderInput: s.settingsProviderInput,
       onSettingsProvider: e => this.selectSettingsProvider(e.target.value),
       settingsProviderOptions: (s.settingsData && s.settingsData.providerModels ? Object.keys(s.settingsData.providerModels) : ['anthropic', 'gemini', 'openai'])
