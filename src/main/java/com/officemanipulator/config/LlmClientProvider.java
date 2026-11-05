@@ -25,8 +25,8 @@ import java.util.regex.Pattern;
  * Decides which provider/key/model each LLM call uses.
  * <ul>
  *   <li>Default: {@code LLM_PROVIDER} from .env with that provider's {@code *_API_KEY}/{@code *_MODEL};
- *       the Settings page can override the default provider's key/model at runtime (verified with
- *       "Kontrol et" before AI is enabled).</li>
+ *       the Settings page can switch the default provider (within the whitelist) and its key/model at
+ *       runtime — stored only once verified with "Kontrol et", which is also what enables AI.</li>
  *   <li>Per request: user-facing endpoints may pass {@code llm_provider}/{@code llm_api_key}/{@code llm_model}
  *       ({@link #resolveOverride}). Synchronous calls run inside {@link #callWith}; async jobs started
  *       by that request get it via {@link #bindJob}, held in memory only — a request key is never
@@ -43,13 +43,14 @@ public class LlmClientProvider {
     private static final Pattern SAFE_KEY = Pattern.compile("[\\x21-\\x7e]{1,4096}");
     private static final Pattern SAFE_MODEL = Pattern.compile("[a-zA-Z0-9._:-]{1,128}");
     // shortcut: request keys bound to a job live in memory and expire after this TTL (or when the job ends); a restart drops them and the job falls back to the .env default — persist an encrypted marker if that matters.
+    static final String KEY_PROVIDER = "llm.provider";
     private static final Duration BINDING_TTL = Duration.ofHours(24);
 
     private record Binding(LlmSelection selection, Instant expiresAt) {}
 
     private final AppSettingsService settings;
     private final ModelPricing pricing;
-    private final LlmProvider defaultProvider;
+    private final LlmProvider envProvider;
     private final Map<LlmProvider, String> envKeys = new EnumMap<>(LlmProvider.class);
     private final Map<LlmProvider, String> envModels = new EnumMap<>(LlmProvider.class);
     private final Map<LlmProvider, LlmClient> clients = new EnumMap<>(LlmProvider.class);
@@ -67,7 +68,7 @@ public class LlmClientProvider {
             @Value("${app.llm.openai.model:}") String openaiModel) {
         this.settings = settings;
         this.pricing = pricing;
-        this.defaultProvider = LlmProvider.parse(provider);
+        this.envProvider = LlmProvider.parse(provider);
         envKeys.put(LlmProvider.ANTHROPIC, anthropicKey);
         envKeys.put(LlmProvider.GEMINI, geminiKey);
         envKeys.put(LlmProvider.OPENAI, openaiKey);
@@ -75,12 +76,20 @@ public class LlmClientProvider {
         envModels.put(LlmProvider.GEMINI, geminiModel);
         envModels.put(LlmProvider.OPENAI, openaiModel);
         adapters.forEach(adapter -> clients.put(adapter.provider(), adapter));
-        if (blank(envModels.get(defaultProvider))) {
-            throw new IllegalArgumentException(defaultProvider.name() + "_MODEL ayarlanmalı (LLM_PROVIDER=" + defaultProvider.id() + ")");
+        if (blank(envModels.get(envProvider))) {
+            throw new IllegalArgumentException(envProvider.name() + "_MODEL ayarlanmalı (LLM_PROVIDER=" + envProvider.id() + ")");
         }
     }
 
-    public LlmProvider defaultProvider() { return defaultProvider; }
+    /** .env's LLM_PROVIDER unless the Settings page verified another whitelisted provider. */
+    public LlmProvider defaultProvider() {
+        String stored = settings.get(KEY_PROVIDER, null);
+        try {
+            return blank(stored) ? envProvider : LlmProvider.parse(stored);
+        } catch (IllegalArgumentException e) {
+            return envProvider;
+        }
+    }
 
     public LlmClient client(LlmProvider provider) {
         LlmClient client = clients.get(provider);
@@ -88,22 +97,35 @@ public class LlmClientProvider {
         return client;
     }
 
-    public String model() { return settings.get(key("model"), envModels.get(defaultProvider)); }
+    public String model() { return model(defaultProvider()); }
 
-    public String configuredKey() { return settings.get(key("api-key"), envKeys.get(defaultProvider)); }
+    /** Stored (Settings) model for {@code provider}, else its .env model; may be blank. */
+    public String model(LlmProvider provider) { return settings.get(key(provider, "model"), envModels.get(provider)); }
+
+    public String configuredKey() { return configuredKey(defaultProvider()); }
+
+    public String configuredKey(LlmProvider provider) { return settings.get(key(provider, "api-key"), envKeys.get(provider)); }
 
     public boolean keyConfigured() { return !blank(configuredKey()); }
 
     public boolean keyVerified() {
-        return keyConfigured() && fingerprint(configuredKey(), model()).equals(settings.get(key("verified-fingerprint"), ""));
+        LlmProvider provider = defaultProvider();
+        String apiKey = configuredKey(provider), model = model(provider);
+        return !blank(apiKey) && !blank(model)
+                && fingerprint(provider, apiKey, model).equals(settings.get(key(provider, "verified-fingerprint"), ""));
     }
 
     public synchronized void activateVerified(String apiKey, String selectedModel) {
-        settings.setAll(Map.of(key("api-key"), apiKey, key("model"), selectedModel,
-                key("verified-fingerprint"), fingerprint(apiKey, selectedModel)));
+        activateVerified(defaultProvider(), apiKey, selectedModel);
     }
 
-    public void invalidateVerification() { settings.set(key("verified-fingerprint"), null); }
+    /** Stores a verified key/model and makes {@code provider} the default, in one transaction. */
+    public synchronized void activateVerified(LlmProvider provider, String apiKey, String selectedModel) {
+        settings.setAll(Map.of(KEY_PROVIDER, provider.id(), key(provider, "api-key"), apiKey, key(provider, "model"), selectedModel,
+                key(provider, "verified-fingerprint"), fingerprint(provider, apiKey, selectedModel)));
+    }
+
+    public void invalidateVerification() { settings.set(key(defaultProvider(), "verified-fingerprint"), null); }
 
     /** Last 4 characters only — never expose the full key back to the frontend. */
     public String maskedKey() {
@@ -114,7 +136,8 @@ public class LlmClientProvider {
 
     public LlmSelection defaultSelection() {
         if (!keyVerified()) throw new IllegalStateException("LLM API anahtarını Ayarlar bölümündeki Kontrol et düğmesiyle doğrulayın.");
-        return new LlmSelection(defaultProvider, configuredKey(), model(), false);
+        LlmProvider provider = defaultProvider();
+        return new LlmSelection(provider, configuredKey(provider), model(provider), false);
     }
 
     /**
@@ -125,16 +148,17 @@ public class LlmClientProvider {
      */
     public LlmSelection resolveOverride(String rawProvider, String rawKey, String rawModel) {
         if (blank(rawProvider) && blank(rawKey) && blank(rawModel)) return null;
+        LlmProvider defaultProvider = defaultProvider();
         LlmProvider provider = blank(rawProvider) ? defaultProvider : LlmProvider.parse(rawProvider);
         String apiKey = blank(rawKey) ? null : rawKey.trim();
         if (apiKey != null && !SAFE_KEY.matcher(apiKey).matches()) throw new IllegalArgumentException("Geçersiz llm_api_key.");
-        String model = blank(rawModel) ? (provider == defaultProvider ? model() : envModels.get(provider)) : rawModel.trim();
+        String model = blank(rawModel) ? model(provider) : rawModel.trim();
         if (blank(model) || !SAFE_MODEL.matcher(model).matches() || model.contains("..")) {
             throw new IllegalArgumentException("Geçerli bir llm_model belirtin.");
         }
         if (apiKey != null) return new LlmSelection(provider, apiKey, model, true);
 
-        String serverKey = provider == defaultProvider ? configuredKey() : envKeys.get(provider);
+        String serverKey = configuredKey(provider);
         if (blank(serverKey)) throw new IllegalArgumentException(provider.id() + " için sunucuda API anahtarı tanımlı değil; llm_api_key gönderin.");
         if (provider == defaultProvider && !keyVerified()) {
             throw new IllegalArgumentException("Sunucudaki LLM anahtarı doğrulanmamış; llm_api_key gönderin.");
@@ -177,13 +201,13 @@ public class LlmClientProvider {
         return defaultSelection();
     }
 
-    private String key(String suffix) {
+    private static String key(LlmProvider provider, String suffix) {
         // Anthropic keeps its pre-multi-provider setting names so existing installs stay verified.
-        return (defaultProvider == LlmProvider.ANTHROPIC ? "claude." : "llm." + defaultProvider.id() + ".") + suffix;
+        return (provider == LlmProvider.ANTHROPIC ? "claude." : "llm." + provider.id() + ".") + suffix;
     }
 
-    private String fingerprint(String apiKey, String selectedModel) {
-        String material = (defaultProvider == LlmProvider.ANTHROPIC ? "" : defaultProvider.id() + "\0") + apiKey + "\0" + selectedModel;
+    private static String fingerprint(LlmProvider provider, String apiKey, String selectedModel) {
+        String material = (provider == LlmProvider.ANTHROPIC ? "" : provider.id() + "\0") + apiKey + "\0" + selectedModel;
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(material.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable", e); }

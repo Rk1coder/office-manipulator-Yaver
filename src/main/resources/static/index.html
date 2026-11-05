@@ -1072,8 +1072,16 @@ body{margin:0}
       </sc-if>
       <p style="margin:0;font-size:12.5px;color:var(--mu);line-height:1.5">{{ settingsRecommendNote }}</p>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="font-size:12.5px;font-weight:600">Claude API key</label>
-        <input type="password" aria-label="Claude API key" autocomplete="off" disabled="{{ settingsBusy }}" value="{{ settingsClaudeKeyInput }}" sc-camel-on-change="{{ onSettingsClaudeKey }}" placeholder="{{ settingsClaudeKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+        <label style="font-size:12.5px;font-weight:600">{{ settingsProviderLabel }}</label>
+        <select aria-label="{{ settingsProviderLabel }}" disabled="{{ settingsBusy }}" value="{{ settingsProviderInput }}" sc-camel-on-change="{{ onSettingsProvider }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+          <sc-for list="{{ settingsProviderOptions }}" as="po" hint-placeholder-count="3">
+            <option value="{{ po.value }}">{{ po.label }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12.5px;font-weight:600">{{ settingsKeyLabel }}</label>
+        <input type="password" aria-label="{{ settingsKeyLabel }}" autocomplete="off" disabled="{{ settingsBusy }}" value="{{ settingsClaudeKeyInput }}" sc-camel-on-change="{{ onSettingsClaudeKey }}" placeholder="{{ settingsClaudeKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
       </div>
       <div style="background:var(--sb);border:1px solid var(--ln);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
         <span style="font-size:12.5px;font-weight:650">{{ apiHowToTitle }}</span>
@@ -1082,15 +1090,21 @@ body{margin:0}
             <li>{{ hs }}</li>
           </sc-for>
         </ol>
-        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;align-self:flex-start">{{ apiHowToLinkLabel }} ↗</a>
+        <a href="{{ apiHowToLinkUrl }}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;align-self:flex-start">{{ apiHowToLinkLabel }} ↗</a>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <label style="font-size:12.5px;font-weight:600">Model</label>
-        <select aria-label="Claude model" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+        <sc-if value="{{ settingsModelIsList }}" hint-placeholder-val="{{ true }}">
+        <select aria-label="Model" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
           <sc-for list="{{ settingsModelOptions }}" as="mo" hint-placeholder-count="2">
             <option value="{{ mo.value }}">{{ mo.label }}</option>
           </sc-for>
         </select>
+        </sc-if>
+        <sc-if value="{{ settingsModelIsText }}" hint-placeholder-val="{{ false }}">
+        <input type="text" aria-label="Model" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModel }}" placeholder="{{ settingsModelPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+        <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsModelHint }}</span>
+        </sc-if>
       </div>
       <button sc-camel-on-click="{{ verifySettings }}" disabled="{{ settingsVerifyDisabled }}" style="border:1px solid var(--acb);background:var(--acb);color:#fff;border-radius:7px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:42px">{{ settingsVerifyLabel }}</button>
       <p style="margin:0;color:var(--mu);font-size:12px;line-height:1.5">{{ settingsVerifyNote }}</p>
@@ -1342,7 +1356,7 @@ const numOf = x => parseFloat(String(x).replace('−', '-').replace(/\s/g, '').r
 const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 class Component extends DCLogic {
-  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsModelInput: '', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
+  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
   timers = [];
   epoch = 0;
   previewEpoch = 0;
@@ -1551,7 +1565,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
     } catch (_) {}
   }
   async openSettings() {
@@ -1561,7 +1575,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
     } catch (error) { this.setState({ settingsError: error.message }); }
   }
   closeSettings() {
@@ -1609,6 +1623,28 @@ class Component extends DCLogic {
     } catch (error) { this.setState({ settingsError: error.message }); }
     finally { this.setState({ settingsSaving: false }); }
   }
+  // Fixed whitelist mirrored from the backend (LlmProvider); labels/help links per provider.
+  providerMeta(id) {
+    const tr = this.L() === 'tr';
+    const meta = {
+      anthropic: { name: 'Claude (Anthropic)', short: 'Claude', keyHint: 'sk-ant-…', url: 'https://console.anthropic.com/settings/keys', console: 'Anthropic Console',
+        steps: tr ? ['console.anthropic.com adresine gidin ve giriş yapın / hesap oluşturun.', '"API Keys" bölümüne girin.', '"Create Key" ile yeni bir anahtar oluşturun.', 'Oluşan anahtarı kopyalayıp yukarıdaki kutuya yapıştırın ve Kontrol et düğmesine basın.']
+          : ['Go to console.anthropic.com and sign in / create an account.', 'Open the "API Keys" section.', 'Click "Create Key" to generate a new key.', 'Copy the generated key, paste it into the box above, and click Check.'] },
+      gemini: { name: 'Google Gemini', short: 'Gemini', keyHint: 'AIza…', url: 'https://aistudio.google.com/apikey', console: 'Google AI Studio',
+        steps: tr ? ['aistudio.google.com adresine gidin ve Google hesabınızla giriş yapın.', '"Get API key" bölümüne girin.', '"Create API key" ile yeni bir anahtar oluşturun.', 'Anahtarı yukarıdaki kutuya yapıştırın, model adını yazın ve Kontrol et düğmesine basın.']
+          : ['Go to aistudio.google.com and sign in with your Google account.', 'Open "Get API key".', 'Click "Create API key".', 'Paste the key above, type the model name, and click Check.'] },
+      openai: { name: 'OpenAI', short: 'OpenAI', keyHint: 'sk-…', url: 'https://platform.openai.com/api-keys', console: 'OpenAI Platform',
+        steps: tr ? ['platform.openai.com adresine gidin ve giriş yapın / hesap oluşturun.', '"API keys" sayfasını açın.', '"Create new secret key" ile yeni bir anahtar oluşturun.', 'Anahtarı yukarıdaki kutuya yapıştırın, model adını yazın ve Kontrol et düğmesine basın.']
+          : ['Go to platform.openai.com and sign in / create an account.', 'Open the "API keys" page.', 'Click "Create new secret key".', 'Paste the key above, type the model name, and click Check.'] }
+    };
+    return meta[id] || meta.anthropic;
+  }
+  selectSettingsProvider(id) {
+    const d = this.state.settingsData;
+    const models = d && d.providerModels && d.providerModels[id] || [];
+    const model = d && id === d.llmProvider ? d.model : (id === 'anthropic' ? (d && d.recommendedModel) || models[0] || '' : models[0] || '');
+    this.setState({ settingsProviderInput: id, settingsModelInput: model, settingsClaudeKeyInput: '', settingsError: '' });
+  }
   async verifySettings() {
     const s = this.state;
     if (s.settingsVerifying || s.settingsSaving) return;
@@ -1618,7 +1654,7 @@ class Component extends DCLogic {
     try {
       const response = await fetch('/api/settings/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ claudeApiKey: s.settingsClaudeKeyInput.trim() || null, model: s.settingsModelInput })
+        body: JSON.stringify({ provider: s.settingsProviderInput, claudeApiKey: s.settingsClaudeKeyInput.trim() || null, model: (s.settingsModelInput || '').trim() || null })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -1626,7 +1662,7 @@ class Component extends DCLogic {
         throw new Error(data.error || (this.L() === 'tr' ? 'Doğrulama başarısız.' : 'Verification failed.'));
       }
       if (data.claudeKeyVerified !== true) throw new Error(this.L() === 'tr' ? 'API doğrulaması tamamlanmadı.' : 'API verification did not complete.');
-      this.setState({ settingsData: data, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsActivated: true });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsActivated: true });
     } catch (error) {
       this.setState({ settingsError: error.name === 'AbortError'
         ? (this.L() === 'tr' ? 'Kontrol zaman aşımına uğradı. Bağlantınızı kontrol edip tekrar deneyin.' : 'Verification timed out. Check your connection and try again.')
@@ -2408,8 +2444,8 @@ class Component extends DCLogic {
         : (L === 'tr' ? 'API durumu yükleniyor…' : 'Loading API status…'),
       apiStatusColor: s.settingsData ? (s.settingsData.claudeKeyVerified ? 'var(--ac)' : 'var(--dg)') : 'var(--mu)',
       apiStatusTitle: s.settingsData && s.settingsData.claudeKeyVerified
-        ? (L === 'tr' ? 'Claude anahtarı ve model erişimi doğrulandı. Ayarlar için tıklayın.' : 'Claude key and model access verified. Click for settings.')
-        : (L === 'tr' ? 'Ayarlar bölümünde Kontrol et düğmesiyle Claude anahtarınızı doğrulayın.' : 'Verify your Claude key with Check in Settings.'),
+        ? (L === 'tr' ? this.providerMeta(s.settingsData.llmProvider).short + ' anahtarı ve model erişimi doğrulandı. Ayarlar için tıklayın.' : this.providerMeta(s.settingsData.llmProvider).short + ' key and model access verified. Click for settings.')
+        : (L === 'tr' ? 'Ayarlar bölümünde Kontrol et düğmesiyle API anahtarınızı doğrulayın.' : 'Verify your API key with Check in Settings.'),
       settingsOpen: s.settingsOpen,
       openSettings: () => this.openSettings(),
       closeSettings: () => this.closeSettings(),
@@ -2417,7 +2453,19 @@ class Component extends DCLogic {
       verifySettings: () => this.verifySettings(),
       settingsSaving: s.settingsSaving,
       settingsBusy: s.settingsSaving || s.settingsVerifying,
-      settingsVerifyDisabled: s.settingsSaving || s.settingsVerifying || !(s.settingsClaudeKeyInput.trim() || (s.settingsData && s.settingsData.claudeKeyConfigured)),
+      settingsVerifyDisabled: s.settingsSaving || s.settingsVerifying || !(s.settingsModelInput || '').trim()
+        || !(s.settingsClaudeKeyInput.trim() || (s.settingsData && s.settingsData.claudeKeyConfigured && s.settingsProviderInput === s.settingsData.llmProvider)),
+      settingsProviderLabel: L === 'tr' ? 'Yapay zekâ sağlayıcısı' : 'AI provider',
+      settingsProviderInput: s.settingsProviderInput,
+      onSettingsProvider: e => this.selectSettingsProvider(e.target.value),
+      settingsProviderOptions: (s.settingsData && s.settingsData.providerModels ? Object.keys(s.settingsData.providerModels) : ['anthropic', 'gemini', 'openai'])
+        .map(id => ({ value: id, label: this.providerMeta(id).name + (id === 'anthropic' ? (L === 'tr' ? ' · önerilen' : ' · recommended') : '') })),
+      settingsKeyLabel: this.providerMeta(s.settingsProviderInput).short + ' API key',
+      settingsModelIsList: s.settingsProviderInput === 'anthropic',
+      settingsModelIsText: s.settingsProviderInput !== 'anthropic',
+      settingsModelPlaceholder: s.settingsProviderInput === 'gemini' ? (L === 'tr' ? 'örn. gemini-2.5-pro' : 'e.g. gemini-2.5-pro') : (L === 'tr' ? 'örn. gpt-5' : 'e.g. gpt-5'),
+      settingsModelHint: L === 'tr' ? 'Model adını sağlayıcının belgelerindeki gibi yazın; Kontrol et, anahtarın bu modele erişimini doğrular.'
+        : 'Type the model id as listed by the provider; Check verifies the key can access it.',
       settingsVerifyLabel: s.settingsVerifying ? (L === 'tr' ? 'Kontrol ediliyor…' : 'Checking…') : (L === 'tr' ? 'Kontrol et' : 'Check'),
       settingsVerifyNote: L === 'tr'
         ? 'Kontrol için internet gerekir. Anahtar ve seçili modele erişim doğrulanır; belge üretilmez. Hesap bakiyesi ve üretim kotası ayrıca geçerlidir.'
@@ -2425,16 +2473,16 @@ class Component extends DCLogic {
       settingsActivated: s.settingsActivated,
       settingsFormVisible: !s.settingsActivated,
       settingsActivatedTitle: L === 'tr' ? 'Aktifleştirildi' : 'Activated',
-      settingsActivatedText: L === 'tr' ? 'Claude API anahtarınız doğrulandı ve kaydedildi. AI özelliklerini kullanabilirsiniz.' : 'Your Claude API key was verified and saved. You can now use AI features.',
+      settingsActivatedText: L === 'tr' ? this.providerMeta(s.settingsProviderInput).short + ' API anahtarınız doğrulandı ve kaydedildi. AI özelliklerini kullanabilirsiniz.' : 'Your ' + this.providerMeta(s.settingsProviderInput).short + ' API key was verified and saved. You can now use AI features.',
       settingsContinueLabel: L === 'tr' ? 'Uygulamaya dön' : 'Back to app',
       settingsSaveLabel: s.settingsSaving ? (L === 'tr' ? 'Kaydediliyor…' : 'Saving…') : (L === 'tr' ? 'Görsel ayarlarını kaydet' : 'Save image settings'),
       settingsError: s.settingsError,
       settingsHasError: !!s.settingsError,
       settingsClaudeKeyInput: s.settingsClaudeKeyInput,
       onSettingsClaudeKey: e => this.setState({ settingsClaudeKeyInput: e.target.value }),
-      settingsClaudeKeyPlaceholder: s.settingsData && s.settingsData.claudeKeyConfigured
+      settingsClaudeKeyPlaceholder: s.settingsData && s.settingsData.claudeKeyConfigured && s.settingsProviderInput === s.settingsData.llmProvider
         ? (L === 'tr' ? 'Mevcut: ' + s.settingsData.claudeKeyMasked + ' (değiştirmek için yeni anahtar yazın)' : 'Current: ' + s.settingsData.claudeKeyMasked + ' (type a new key to change it)')
-        : (L === 'tr' ? 'sk-ant-… yapıştırın' : 'Paste your sk-ant-… key'),
+        : (L === 'tr' ? this.providerMeta(s.settingsProviderInput).keyHint + ' yapıştırın' : 'Paste your ' + this.providerMeta(s.settingsProviderInput).keyHint + ' key'),
       settingsModelInput: s.settingsModelInput,
       onSettingsModel: e => this.setState({ settingsModelInput: e.target.value }),
       settingsModelOptions: s.settingsData ? s.settingsData.availableModels.map(m => ({
@@ -2445,13 +2493,12 @@ class Component extends DCLogic {
         : 'For the best document quality and performance, using your own Claude API key is recommended.',
       settingsNeedsKeyWarning: !!(s.settingsData && !s.settingsData.claudeKeyVerified),
       settingsNeedsKeyWarningText: L === 'tr'
-        ? 'Claude henüz etkin değil. Anahtarınızı girin veya kayıtlı anahtarınızı doğrulamak için Kontrol et düğmesine basın.'
-        : 'Claude is not active yet. Enter a key or click Check to verify your saved key.',
+        ? 'Yapay zekâ henüz etkin değil. Bir sağlayıcı seçip anahtarınızı girin veya kayıtlı anahtarınızı doğrulamak için Kontrol et düğmesine basın.'
+        : 'AI is not active yet. Pick a provider and enter a key, or click Check to verify your saved key.',
       apiHowToTitle: L === 'tr' ? 'API anahtarı nasıl alınır?' : 'How do I get an API key?',
-      apiHowToSteps: L === 'tr'
-        ? ['console.anthropic.com adresine gidin ve giriş yapın / hesap oluşturun.', '"API Keys" bölümüne girin.', '"Create Key" ile yeni bir anahtar oluşturun.', 'Oluşan anahtarı kopyalayıp yukarıdaki kutuya yapıştırın ve Kontrol et düğmesine basın.']
-        : ['Go to console.anthropic.com and sign in / create an account.', 'Open the "API Keys" section.', 'Click "Create Key" to generate a new key.', 'Copy the generated key, paste it into the box above, and click Check.'],
-      apiHowToLinkLabel: L === 'tr' ? 'Anthropic Console\'u aç' : 'Open Anthropic Console',
+      apiHowToSteps: this.providerMeta(s.settingsProviderInput).steps,
+      apiHowToLinkLabel: L === 'tr' ? this.providerMeta(s.settingsProviderInput).console + ' sayfasını aç' : 'Open ' + this.providerMeta(s.settingsProviderInput).console,
+      apiHowToLinkUrl: this.providerMeta(s.settingsProviderInput).url,
       guideOpen: s.guideOpen,
       guideStepData: (() => { const steps = this.guideSteps(); return steps[Math.min(s.guideStep, steps.length - 1)] || steps[0]; })(),
       guideStepIndex: s.guideStep + 1,

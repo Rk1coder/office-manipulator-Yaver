@@ -11,11 +11,13 @@ import com.officemanipulator.service.GeminiImageService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Lets the Settings page read and change the default LLM provider's API key/model (the provider
- * itself is fixed by LLM_PROVIDER in .env) and the optional Gemini image key at runtime.
+ * Lets the Settings page read and change the default LLM provider (whitelisted only), its API
+ * key/model, and the optional Gemini image key at runtime.
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -27,23 +29,32 @@ public class SettingsController {
     private final LlmClientProvider claudeClientProvider;
     private final AppSettingsService settingsService;
     private final GeminiImageService geminiImageService;
-    private final String envModel;
 
     public SettingsController(LlmClientProvider claudeClientProvider, AppSettingsService settingsService,
-            GeminiImageService geminiImageService, com.officemanipulator.config.ModelPricing pricing) {
+            GeminiImageService geminiImageService) {
         this.claudeClientProvider = claudeClientProvider;
         this.settingsService = settingsService;
         this.geminiImageService = geminiImageService;
-        this.envModel = pricing.model();
     }
 
-    /** Anthropic offers the priced built-in list; other providers only their .env model (the one priced via LLM_*_PRICE). */
-    private List<String> availableModels() {
-        return claudeClientProvider.defaultProvider() == LlmProvider.ANTHROPIC ? AVAILABLE_MODELS : List.of(envModel);
+    /** Anthropic: the priced built-in list. Others: no fixed list (any model name, checked against the
+     * provider's models API by "Kontrol et"); the stored/.env model is offered as a suggestion. */
+    private List<String> modelsFor(LlmProvider provider) {
+        if (provider == LlmProvider.ANTHROPIC) return AVAILABLE_MODELS;
+        String model = claudeClientProvider.model(provider);
+        return model == null || model.isBlank() ? List.of() : List.of(model);
+    }
+
+    private static boolean modelAllowed(LlmProvider provider, String model) {
+        return provider == LlmProvider.ANTHROPIC ? AVAILABLE_MODELS.contains(model)
+                : model.matches("[a-zA-Z0-9._:-]{1,128}") && !model.contains("..");
     }
 
     public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled) {}
-    public record VerificationRequest(String claudeApiKey, String model) {}
+    /** {@code claudeApiKey} keeps its old name for the existing UI; it is the key of {@code provider}. */
+    public record VerificationRequest(String claudeApiKey, String model, String provider) {
+        public VerificationRequest(String claudeApiKey, String model) { this(claudeApiKey, model, null); }
+    }
     public record VerificationError(String error, SettingsResponse settings) {}
 
     @GetMapping
@@ -55,7 +66,7 @@ public class SettingsController {
     public synchronized ResponseEntity<?> save(@RequestBody SettingsRequest body) {
         if ((body.claudeApiKey() != null && !body.claudeApiKey().isBlank())
                 || (body.model() != null && !body.model().isBlank() && !body.model().equals(claudeClientProvider.model()))) {
-            return ResponseEntity.badRequest().body(ErrorResponse.of("Claude anahtarını veya modelini değiştirmek için Kontrol et düğmesini kullanın."));
+            return ResponseEntity.badRequest().body(ErrorResponse.of("LLM anahtarını veya modelini değiştirmek için Kontrol et düğmesini kullanın."));
         }
 
         if (body.geminiApiKey() != null) settingsService.set(GeminiImageService.KEY_API_KEY, body.geminiApiKey().isBlank() ? null : body.geminiApiKey());
@@ -66,18 +77,26 @@ public class SettingsController {
 
     @PostMapping("/verify")
     public synchronized ResponseEntity<?> verify(@RequestBody VerificationRequest body) {
+        LlmProvider provider;
+        try {
+            provider = body.provider() == null || body.provider().isBlank() ? claudeClientProvider.defaultProvider() : LlmProvider.parse(body.provider());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+        }
         String key = body.claudeApiKey() == null || body.claudeApiKey().isBlank()
-                ? claudeClientProvider.configuredKey() : body.claudeApiKey().trim();
-        String model = body.model() == null || body.model().isBlank() ? claudeClientProvider.model() : body.model().trim();
+                ? claudeClientProvider.configuredKey(provider) : body.claudeApiKey().trim();
+        String model = body.model() == null || body.model().isBlank() ? claudeClientProvider.model(provider) : body.model().trim();
         if (key == null || key.isBlank() || key.length() > 4096 || key.chars().anyMatch(c -> c <= 32 || c >= 127))
             return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir API anahtarı girin."));
-        if (!availableModels().contains(model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
+        if (model == null || !modelAllowed(provider, model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
+        boolean current = provider == claudeClientProvider.defaultProvider();
         try {
-            claudeClientProvider.client(claudeClientProvider.defaultProvider()).verify(key, model);
-            claudeClientProvider.activateVerified(key, model);
+            claudeClientProvider.client(provider).verify(key, model);
+            claudeClientProvider.activateVerified(provider, key, model);
             return ResponseEntity.ok(currentView());
         } catch (ClaudeKeyVerifier.VerificationFailure failure) {
-            if (java.util.Objects.equals(key, claudeClientProvider.configuredKey())
+            // A failed check of another provider never touches the active one.
+            if (current && java.util.Objects.equals(key, claudeClientProvider.configuredKey())
                     && (failure.status() == HttpStatus.UNAUTHORIZED
                     || (failure.status() == HttpStatus.FORBIDDEN && model.equals(claudeClientProvider.model())))) {
                 claudeClientProvider.invalidateVerification();
@@ -92,12 +111,19 @@ public class SettingsController {
                 claudeClientProvider.keyVerified(),
                 claudeClientProvider.maskedKey(),
                 claudeClientProvider.model(),
-                claudeClientProvider.defaultProvider() == LlmProvider.ANTHROPIC ? RECOMMENDED_MODEL : envModel,
-                availableModels(),
+                claudeClientProvider.defaultProvider() == LlmProvider.ANTHROPIC ? RECOMMENDED_MODEL : null,
+                modelsFor(claudeClientProvider.defaultProvider()),
                 geminiImageService.isConfiguredFlag(),
                 geminiImageService.keyConfigured(),
                 geminiImageService.maskedApiKey(),
-                claudeClientProvider.defaultProvider().id()
+                claudeClientProvider.defaultProvider().id(),
+                providerModels()
         );
+    }
+
+    private Map<String, List<String>> providerModels() {
+        Map<String, List<String>> models = new LinkedHashMap<>();
+        for (LlmProvider provider : LlmProvider.values()) models.put(provider.id(), modelsFor(provider));
+        return models;
     }
 }

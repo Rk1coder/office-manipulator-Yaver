@@ -12,5 +12,7 @@ public record SettingsResponse(
         boolean geminiEnabled,
         boolean geminiKeyConfigured,
         String geminiKeyMasked,
-        String llmProvider
+        String llmProvider,
+        /** Whitelisted providers (keys, in display order) with their suggested models. */
+        java.util.Map<String, List<String>> providerModels
 ) {}
