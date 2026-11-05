@@ -197,7 +197,7 @@ public class JobService {
             validator.validate(result.outputPath(), job.getFormat());
 
             job.setFilePath(result.outputPath().toString());
-            job.setFileName("output." + job.getFormat().fileExtension());
+            job.setFileName(OutputFileNames.forJob(job));
             job.setFileSize(storageService.fileSize(result.outputPath()));
             job.setCompletedAt(OffsetDateTime.now());
             // A concurrent cancel() may already own this row; only finish a status we still hold.

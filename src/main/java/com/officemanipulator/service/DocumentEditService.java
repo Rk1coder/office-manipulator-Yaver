@@ -163,7 +163,7 @@ public class DocumentEditService {
             validator.validate(outputPath, patchJob.getFormat());
 
             patchJob.setFilePath(outputPath.toString());
-            patchJob.setFileName("output." + patchJob.getFormat().fileExtension());
+            patchJob.setFileName(OutputFileNames.forEdit(patchJob, original));
             patchJob.setFileSize(storageService.fileSize(outputPath));
             patchJob.setTokenInput(0);
             patchJob.setTokenOutput(0);
@@ -263,7 +263,7 @@ public class DocumentEditService {
             validator.validate(outputPath, editJob.getFormat());
 
             editJob.setFilePath(outputPath.toString());
-            editJob.setFileName("output." + editJob.getFormat().fileExtension());
+            editJob.setFileName(OutputFileNames.forEdit(editJob, originalJob));
             editJob.setFileSize(storageService.fileSize(outputPath));
             editJob.setCompletedAt(OffsetDateTime.now());
             // A concurrent cancel() may already own this row; only finish a status we still hold.
