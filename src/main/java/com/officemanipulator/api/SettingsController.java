@@ -37,17 +37,23 @@ public class SettingsController {
         this.geminiImageService = geminiImageService;
     }
 
-    /** Anthropic: the priced built-in list. Others: no fixed list (any model name, checked against the
-     * provider's models API by "Kontrol et"); the stored/.env model is offered as a suggestion. */
+    // shortcut: suggestions are a static list (any id is still accepted and checked against the provider's models API); refresh it as providers ship new models, or list live via the models API.
+    private static final Map<LlmProvider, List<String>> SUGGESTED_MODELS = Map.of(
+            LlmProvider.ANTHROPIC, AVAILABLE_MODELS,
+            LlmProvider.GEMINI, List.of("gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"),
+            LlmProvider.OPENAI, List.of("gpt-5", "gpt-5-mini", "gpt-4.1"));
+
+    /** Suggested models for the Settings dropdown, plus the stored/.env model if it isn't one of them. */
     private List<String> modelsFor(LlmProvider provider) {
-        if (provider == LlmProvider.ANTHROPIC) return AVAILABLE_MODELS;
-        String model = claudeClientProvider.model(provider);
-        return model == null || model.isBlank() ? List.of() : List.of(model);
+        List<String> models = new java.util.ArrayList<>(SUGGESTED_MODELS.get(provider));
+        String current = claudeClientProvider.model(provider);
+        if (current != null && !current.isBlank() && !models.contains(current)) models.add(0, current);
+        return models;
     }
 
-    private static boolean modelAllowed(LlmProvider provider, String model) {
-        return provider == LlmProvider.ANTHROPIC ? AVAILABLE_MODELS.contains(model)
-                : model.matches("[a-zA-Z0-9._:-]{1,128}") && !model.contains("..");
+    /** Any plain model id (also typed by hand); "Kontrol et" proves the key can use it. */
+    private static boolean modelAllowed(String model) {
+        return model.matches("[a-zA-Z0-9._:-]{1,128}") && !model.contains("..");
     }
 
     public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled) {}
@@ -88,7 +94,7 @@ public class SettingsController {
         String model = body.model() == null || body.model().isBlank() ? claudeClientProvider.model(provider) : body.model().trim();
         if (key == null || key.isBlank() || key.length() > 4096 || key.chars().anyMatch(c -> c <= 32 || c >= 127))
             return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir API anahtarı girin."));
-        if (model == null || !modelAllowed(provider, model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
+        if (model == null || !modelAllowed(model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
         boolean current = provider == claudeClientProvider.defaultProvider();
         try {
             claudeClientProvider.client(provider).verify(key, model);
