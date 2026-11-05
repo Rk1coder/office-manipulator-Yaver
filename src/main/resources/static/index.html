@@ -1094,15 +1094,13 @@ body{margin:0}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <label style="font-size:12.5px;font-weight:600">Model</label>
-        <sc-if value="{{ settingsModelIsList }}" hint-placeholder-val="{{ true }}">
-        <select aria-label="Model" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
-          <sc-for list="{{ settingsModelOptions }}" as="mo" hint-placeholder-count="2">
+        <select aria-label="Model" disabled="{{ settingsBusy }}" value="{{ settingsModelSelectValue }}" sc-camel-on-change="{{ onSettingsModel }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+          <sc-for list="{{ settingsModelOptions }}" as="mo" hint-placeholder-count="3">
             <option value="{{ mo.value }}">{{ mo.label }}</option>
           </sc-for>
         </select>
-        </sc-if>
-        <sc-if value="{{ settingsModelIsText }}" hint-placeholder-val="{{ false }}">
-        <input type="text" aria-label="Model" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModel }}" placeholder="{{ settingsModelPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
+        <sc-if value="{{ settingsModelCustom }}" hint-placeholder-val="{{ false }}">
+        <input type="text" aria-label="{{ settingsModelCustomLabel }}" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsModelInput }}" sc-camel-on-change="{{ onSettingsModelText }}" placeholder="{{ settingsModelPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
         <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsModelHint }}</span>
         </sc-if>
       </div>
@@ -1356,7 +1354,7 @@ const numOf = x => parseFloat(String(x).replace('−', '-').replace(/\s/g, '').r
 const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 class Component extends DCLogic {
-  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
+  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
   timers = [];
   epoch = 0;
   previewEpoch = 0;
@@ -1565,7 +1563,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
     } catch (_) {}
   }
   async openSettings() {
@@ -1575,7 +1573,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsGeminiEnabledInput: data.geminiEnabled, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
     } catch (error) { this.setState({ settingsError: error.message }); }
   }
   closeSettings() {
@@ -1643,7 +1641,11 @@ class Component extends DCLogic {
     const d = this.state.settingsData;
     const models = d && d.providerModels && d.providerModels[id] || [];
     const model = d && id === d.llmProvider ? d.model : (id === 'anthropic' ? (d && d.recommendedModel) || models[0] || '' : models[0] || '');
-    this.setState({ settingsProviderInput: id, settingsModelInput: model, settingsClaudeKeyInput: '', settingsError: '' });
+    this.setState({ settingsProviderInput: id, settingsModelInput: model, settingsModelCustom: !!model && !this.isSuggestedModel(d, id, model), settingsClaudeKeyInput: '', settingsError: '' });
+  }
+  isSuggestedModel(data, provider, model) {
+    const list = data && data.providerModels && data.providerModels[provider] || [];
+    return !model || list.includes(model);
   }
   async verifySettings() {
     const s = this.state;
@@ -1662,7 +1664,7 @@ class Component extends DCLogic {
         throw new Error(data.error || (this.L() === 'tr' ? 'Doğrulama başarısız.' : 'Verification failed.'));
       }
       if (data.claudeKeyVerified !== true) throw new Error(this.L() === 'tr' ? 'API doğrulaması tamamlanmadı.' : 'API verification did not complete.');
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsActivated: true });
+      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsActivated: true });
     } catch (error) {
       this.setState({ settingsError: error.name === 'AbortError'
         ? (this.L() === 'tr' ? 'Kontrol zaman aşımına uğradı. Bağlantınızı kontrol edip tekrar deneyin.' : 'Verification timed out. Check your connection and try again.')
@@ -2461,9 +2463,7 @@ class Component extends DCLogic {
       settingsProviderOptions: (s.settingsData && s.settingsData.providerModels ? Object.keys(s.settingsData.providerModels) : ['anthropic', 'gemini', 'openai'])
         .map(id => ({ value: id, label: this.providerMeta(id).name + (id === 'anthropic' ? (L === 'tr' ? ' · önerilen' : ' · recommended') : '') })),
       settingsKeyLabel: this.providerMeta(s.settingsProviderInput).short + ' API key',
-      settingsModelIsList: s.settingsProviderInput === 'anthropic',
-      settingsModelIsText: s.settingsProviderInput !== 'anthropic',
-      settingsModelPlaceholder: s.settingsProviderInput === 'gemini' ? (L === 'tr' ? 'örn. gemini-2.5-pro' : 'e.g. gemini-2.5-pro') : (L === 'tr' ? 'örn. gpt-5' : 'e.g. gpt-5'),
+      settingsModelPlaceholder: ({ anthropic: 'claude-…', gemini: 'gemini-…', openai: 'gpt-…' })[s.settingsProviderInput] || '',
       settingsModelHint: L === 'tr' ? 'Model adını sağlayıcının belgelerindeki gibi yazın; Kontrol et, anahtarın bu modele erişimini doğrular.'
         : 'Type the model id as listed by the provider; Check verifies the key can access it.',
       settingsVerifyLabel: s.settingsVerifying ? (L === 'tr' ? 'Kontrol ediliyor…' : 'Checking…') : (L === 'tr' ? 'Kontrol et' : 'Check'),
@@ -2484,10 +2484,17 @@ class Component extends DCLogic {
         ? (L === 'tr' ? 'Mevcut: ' + s.settingsData.claudeKeyMasked + ' (değiştirmek için yeni anahtar yazın)' : 'Current: ' + s.settingsData.claudeKeyMasked + ' (type a new key to change it)')
         : (L === 'tr' ? this.providerMeta(s.settingsProviderInput).keyHint + ' yapıştırın' : 'Paste your ' + this.providerMeta(s.settingsProviderInput).keyHint + ' key'),
       settingsModelInput: s.settingsModelInput,
-      onSettingsModel: e => this.setState({ settingsModelInput: e.target.value }),
-      settingsModelOptions: s.settingsData ? s.settingsData.availableModels.map(m => ({
-        value: m, label: m + (m === s.settingsData.recommendedModel ? (L === 'tr' ? ' (Önerilen · en iyi performans)' : ' (Recommended · best performance)') : '')
-      })) : [],
+      // '__custom__' is a UI-only sentinel: it reveals the free-text box instead of being sent.
+      onSettingsModel: e => this.setState(e.target.value === '__custom__'
+        ? { settingsModelCustom: true, settingsModelInput: '' }
+        : { settingsModelCustom: false, settingsModelInput: e.target.value }),
+      onSettingsModelText: e => this.setState({ settingsModelInput: e.target.value }),
+      settingsModelCustom: s.settingsModelCustom,
+      settingsModelSelectValue: s.settingsModelCustom ? '__custom__' : s.settingsModelInput,
+      settingsModelCustomLabel: L === 'tr' ? 'Model adı' : 'Model id',
+      settingsModelOptions: (s.settingsData && s.settingsData.providerModels && s.settingsData.providerModels[s.settingsProviderInput] || [])
+        .map(m => ({ value: m, label: m + (m === s.settingsData.recommendedModel && s.settingsProviderInput === 'anthropic' ? (L === 'tr' ? ' (Önerilen · en iyi performans)' : ' (Recommended · best performance)') : '') }))
+        .concat([{ value: '__custom__', label: L === 'tr' ? 'Diğer (elle gir)…' : 'Other (type it)…' }]),
       settingsRecommendNote: L === 'tr'
         ? 'En iyi belge kalitesi ve performans için Claude API anahtarınızı kullanmanız önerilir.'
         : 'For the best document quality and performance, using your own Claude API key is recommended.',
