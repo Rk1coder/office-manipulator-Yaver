@@ -1644,8 +1644,7 @@ class Component extends DCLogic {
   async openSettings(button) {
     if (this.state.settingsVerifying || this.state.settingsSaving) return;
     const patch = { settingsOpen: true, settingsActivated: false, settingsError: '', settingsTab: 'ai' };
-    // Same reveal as the theme toggle: the dialog grows as a circle from the gear button.
-    this.circleReveal(button, () => new Promise(done => this.setState(patch, done)), 450);
+    this.setState(patch, () => this.animateSettingsOpen(button));
     try {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
@@ -1745,6 +1744,24 @@ class Component extends DCLogic {
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
         { duration, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' });
     }).catch(() => {});
+  }
+  // Settings opens differently from the theme's circle reveal: the backdrop fades in and the
+  // panel zooms out of the gear button (transform-origin points at it), like a popover growing.
+  animateSettingsOpen(button) {
+    const panel = document.querySelector('.yv-settings');
+    if (!panel || !panel.animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    const box = panel.getBoundingClientRect();
+    let origin = 'center';
+    if (button) {
+      const b = button.getBoundingClientRect();
+      origin = `${b.left + b.width / 2 - box.left}px ${b.top + b.height / 2 - box.top}px`;
+    }
+    panel.parentElement.animate({ opacity: [0, 1] }, { duration: 200, easing: 'ease-out' });
+    panel.animate(
+      [{ opacity: 0, transform: 'scale(.6)', transformOrigin: origin },
+       { opacity: 1, transform: 'scale(1.015)', transformOrigin: origin, offset: .7 },
+       { opacity: 1, transform: 'scale(1)', transformOrigin: origin }],
+      { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
   }
   // Vertical tablist keyboard model (WAI-ARIA): arrows move and focus, Home/End jump.
   settingsTabKey(e) {
