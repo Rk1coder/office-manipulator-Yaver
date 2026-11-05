@@ -82,6 +82,28 @@ public class ToolRegistry {
                 .build());
     }
 
+    /** Visual review of a rendered deck: the reviewer looks at slide images and reports concrete,
+     * fixable defects. See SystemPrompts.SLIDE_REVIEW and ClaudeOrchestrator's review loop. */
+    public LlmClient.Tool slideReviewTool() {
+        Map<String, Object> text = Map.of("type", "string");
+        Map<String, Object> issue = objectSchema(Map.of(
+                "slide", Map.of("type", "integer"),
+                "severity", Map.of("type", "string", "enum", List.of("high", "medium", "low")),
+                "problem", text, "fix", text));
+        Map<String, Object> properties = new java.util.LinkedHashMap<>();
+        properties.put("approved", Map.of("type", "boolean"));
+        properties.put("summary", text);
+        properties.put("issues", Map.of("type", "array", "items", issue));
+        var builder = Tool.InputSchema.Properties.builder();
+        properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
+        return toLlm(Tool.builder().name("submit_slide_review")
+                .description("Submit the visual review of the rendered slides: approval plus every concrete defect with its fix.")
+                .strict(true)
+                .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
+                        .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build())
+                .build());
+    }
+
     /** Yaver in-editor chat panel's edit call: returns both the rewritten text AND structured
      * formatting instructions the ONLYOFFICE bridge can apply via its internal document API. */
     public LlmClient.Tool documentEditTool() {

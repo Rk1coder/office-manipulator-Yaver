@@ -65,6 +65,9 @@ app:
     openai:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:}
+  presentation:
+    # Render → visual review → rewrite rounds after a deck first validates (needs ONLYOFFICE; 0 = off).
+    review-rounds: ${PRESENTATION_REVIEW_ROUNDS:2}
   claude:
     max-tokens: 32000
     max-tool-turns: 4

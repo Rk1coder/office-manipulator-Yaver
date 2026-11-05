@@ -32,9 +32,12 @@ public class GeminiImageService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.officemanipulator.domain.JobRepository jobs;
     @Value("${app.gemini.input-price-per-million:0}")
-    private java.math.BigDecimal inputPrice;
+    private java.math.BigDecimal envInputPrice;
     @Value("${app.gemini.output-price-per-million:0}")
-    private java.math.BigDecimal outputPrice;
+    private java.math.BigDecimal envOutputPrice;
+    /** Lets image generation reuse the Gemini key entered for the LLM provider. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.LlmClientProvider llm;
     private static final int OUTPUT_TOKENS = 8192;
     private final RestClient restClient;
     private final FileStorageService storageService;
@@ -66,9 +69,35 @@ public class GeminiImageService {
 
     public static final String KEY_API_KEY = "gemini.api-key";
     public static final String KEY_ENABLED = "gemini.enabled";
+    public static final String KEY_INPUT_PRICE = "gemini.input-price-per-million";
+    public static final String KEY_OUTPUT_PRICE = "gemini.output-price-per-million";
 
+    /** Image key, else .env GEMINI_API_KEY, else the Gemini key saved for the LLM provider. */
     private String apiKey() {
-        return settings.get(KEY_API_KEY, envApiKey);
+        String key = settings.get(KEY_API_KEY, envApiKey);
+        if ((key == null || key.isBlank()) && llm != null) key = llm.configuredKey(com.officemanipulator.llm.LlmProvider.GEMINI);
+        return key;
+    }
+
+    /** True when the key comes from the LLM provider settings rather than the image settings. */
+    public boolean keySharedWithLlm() {
+        String own = settings.get(KEY_API_KEY, envApiKey);
+        return (own == null || own.isBlank()) && keyConfigured();
+    }
+
+    public java.math.BigDecimal inputPrice() { return price(KEY_INPUT_PRICE, envInputPrice); }
+    public java.math.BigDecimal outputPrice() { return price(KEY_OUTPUT_PRICE, envOutputPrice); }
+
+    /** The budget guard needs a positive rate per token before any paid image call. */
+    public boolean pricesConfigured() { return inputPrice().signum() > 0 && outputPrice().signum() > 0; }
+
+    private java.math.BigDecimal price(String key, java.math.BigDecimal envDefault) {
+        String stored = settings.get(key, null);
+        try {
+            return stored == null || stored.isBlank() ? (envDefault == null ? java.math.BigDecimal.ZERO : envDefault) : new java.math.BigDecimal(stored.trim());
+        } catch (NumberFormatException e) {
+            return java.math.BigDecimal.ZERO;
+        }
     }
 
     private boolean enabled() {
@@ -76,9 +105,10 @@ public class GeminiImageService {
         return override != null ? Boolean.parseBoolean(override) : envEnabled;
     }
 
+    /** Enabled, keyed and priced; without prices images are skipped instead of failing the job. */
     public boolean isEnabled() {
         String apiKey = apiKey();
-        return enabled() && apiKey != null && !apiKey.isBlank();
+        return enabled() && apiKey != null && !apiKey.isBlank() && pricesConfigured();
     }
 
     public boolean isConfiguredFlag() { return enabled(); }
@@ -98,7 +128,7 @@ public class GeminiImageService {
         if (!isEnabled()) return Optional.empty();
 
         if (!index.matches("[1-9][0-9]{0,3}")) throw new IllegalArgumentException("Invalid image index");
-        if (inputPrice == null || outputPrice == null || inputPrice.signum() <= 0 || outputPrice.signum() <= 0)
+        if (!pricesConfigured())
             throw new IllegalStateException("Configure Gemini token prices before enabling image generation");
         UUID reservation = billing.reserve(jobId, "gemini", cost(prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 8192L, OUTPUT_TOKENS));
         boolean settled = false;
@@ -157,8 +187,8 @@ public class GeminiImageService {
         }
     }
     private java.math.BigDecimal cost(long input, long output) {
-        return inputPrice.multiply(java.math.BigDecimal.valueOf(input))
-            .add(outputPrice.multiply(java.math.BigDecimal.valueOf(output)))
+        return inputPrice().multiply(java.math.BigDecimal.valueOf(input))
+            .add(outputPrice().multiply(java.math.BigDecimal.valueOf(output)))
             .divide(java.math.BigDecimal.valueOf(1_000_000), 6, java.math.RoundingMode.UP);
     }
 }

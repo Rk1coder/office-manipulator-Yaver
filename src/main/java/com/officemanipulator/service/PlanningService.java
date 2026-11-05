@@ -184,8 +184,14 @@ public class PlanningService {
             if (!entry.path("imageNeeded").asBoolean(false)) continue;
             String order = entry.path("order").asText();
             String prompt = entry.path("imagePrompt").asText("");
-            if (!prompt.isBlank()) geminiImageService.generateImage(prompt, job.getId(), order)
-                .ifPresent(path -> result.put(order, path.toString()));
+            if (prompt.isBlank()) continue;
+            try {
+                geminiImageService.generateImage(prompt, job.getId(), order).ifPresent(path -> result.put(order, path.toString()));
+            } catch (RuntimeException e) {
+                // A cancelled job must stop; any other image failure only costs that one image.
+                if (Thread.currentThread().isInterrupted()) throw e;
+                log.warn("Job {} image {} skipped: {}", job.getId(), order, e.getMessage());
+            }
         }
         return result;
     }

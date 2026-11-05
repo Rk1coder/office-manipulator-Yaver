@@ -28,18 +28,27 @@ public interface LlmClient {
 
     record ToolResult(String toolCallId, String toolName, String content) {}
 
-    /** Exactly one of: user text, assistant turn (text and/or tool calls), or a tool result. */
-    record Message(Role role, String text, List<ToolCall> toolCalls, ToolResult toolResult) {
+    /** A base64-encoded image sent to the model (e.g. a rendered slide); {@code mediaType} like "image/png". */
+    record Image(String mediaType, String base64) {
+        /** Never print the payload. */
+        @Override public String toString() { return "Image[" + mediaType + ", " + base64.length() + " chars]"; }
+    }
+
+    /** Exactly one of: user text (optionally with images), assistant turn (text and/or tool calls), or a tool result. */
+    record Message(Role role, String text, List<ToolCall> toolCalls, ToolResult toolResult, List<Image> images) {
         public enum Role { USER, ASSISTANT }
 
-        public static Message user(String text) { return new Message(Role.USER, text, List.of(), null); }
+        public static Message user(String text) { return user(text, List.of()); }
+
+        /** Images come before the text, the order vision models are best at following. */
+        public static Message user(String text, List<Image> images) { return new Message(Role.USER, text, List.of(), null, List.copyOf(images)); }
 
         public static Message assistant(Response response) {
-            return new Message(Role.ASSISTANT, response.text(), response.toolCalls(), null);
+            return new Message(Role.ASSISTANT, response.text(), response.toolCalls(), null, List.of());
         }
 
         public static Message toolResult(ToolCall call, String content) {
-            return new Message(Role.USER, null, List.of(), new ToolResult(call.id(), call.name(), content));
+            return new Message(Role.USER, null, List.of(), new ToolResult(call.id(), call.name(), content), List.of());
         }
     }
 

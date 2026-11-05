@@ -58,6 +58,9 @@ public class GeminiLlmClient implements LlmClient {
                 response.putObject("response").put("result", message.toolResult().content());
                 continue;
             }
+            for (Image image : message.images()) {
+                parts.addObject().putObject("inlineData").put("mimeType", image.mediaType()).put("data", image.base64());
+            }
             if (message.text() != null) parts.addObject().put("text", message.text());
             for (ToolCall call : message.toolCalls()) {
                 ObjectNode part = parts.addObject();

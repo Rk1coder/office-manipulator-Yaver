@@ -47,8 +47,15 @@ public class OpenAiLlmClient implements LlmClient {
             if (message.toolResult() != null) {
                 messages.addObject().put("role", "tool").put("tool_call_id", message.toolResult().toolCallId())
                         .put("content", message.toolResult().content());
-            } else if (message.role() == Message.Role.USER) {
+            } else if (message.role() == Message.Role.USER && message.images().isEmpty()) {
                 messages.addObject().put("role", "user").put("content", message.text());
+            } else if (message.role() == Message.Role.USER) {
+                ArrayNode content = messages.addObject().put("role", "user").putArray("content");
+                for (Image image : message.images()) {
+                    content.addObject().put("type", "image_url").putObject("image_url")
+                            .put("url", "data:" + image.mediaType() + ";base64," + image.base64());
+                }
+                content.addObject().put("type", "text").put("text", message.text());
             } else {
                 ObjectNode assistant = messages.addObject().put("role", "assistant");
                 if (message.text() != null) assistant.put("content", message.text()); else assistant.putNull("content");
