@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from deepagents import HarnessProfile, create_deep_agent, register_harness_profile
 from deepagents.backends import StateBackend
 from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langgraph.errors import GraphRecursionError
 
-from app.config import ANTHROPIC_API_KEY, CLAUDE_MODEL
+from app.config import LLM_API_KEYS, LLM_MODELS, LLM_PROVIDER
 from app.prompts import WORD_DOCUMENT_RULES
 from app.tools import make_create_word_document_tool
 
@@ -18,16 +20,28 @@ from app.tools import make_create_word_document_tool
 # implicit default StateBackend (in-memory, not the host disk) to make them harmless --
 # is the deliberate, documented security boundary this migration's plan calls for
 # ("agent'a sınırsız dosya sistemi veya shell erişimi verme"). Registered once at import
-# time, keyed by provider ("anthropic"), per deepagents.profiles' own resolution rule for
-# pre-built BaseChatModel instances (see register_harness_profile docs).
-register_harness_profile(
-    "anthropic",
-    HarnessProfile(
-        excluded_tools=frozenset(
-            {"ls", "read_file", "write_file", "edit_file", "delete", "glob", "grep", "execute", "task"}
-        )
-    ),
-)
+# time for every whitelisted provider, keyed by the provider name deepagents resolves from a
+# pre-built BaseChatModel instance (its ls_provider; see register_harness_profile docs) --
+# a provider missing here would silently get the default filesystem/shell tools back.
+EXCLUDED_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "delete", "glob", "grep", "execute", "task"})
+
+# Closed whitelist: provider id -> (deepagents profile key, model factory). Endpoints are each
+# library's fixed default; a request can never supply a URL. Adding a provider = a new entry here.
+MODEL_FACTORIES = {
+    "anthropic": ("anthropic", lambda model, key: ChatAnthropic(model=model, api_key=key)),
+    "gemini": ("google_genai", lambda model, key: ChatGoogleGenerativeAI(model=model, google_api_key=key)),
+    "openai": ("openai", lambda model, key: ChatOpenAI(model=model, api_key=key)),
+}
+for _profile_key, _ in MODEL_FACTORIES.values():
+    register_harness_profile(_profile_key, HarnessProfile(excluded_tools=EXCLUDED_TOOLS))
+
+
+def build_model(provider: str, api_key: str, model: str):
+    if provider not in MODEL_FACTORIES:
+        raise ValueError(f"Unsupported LLM provider {provider!r}; allowed: {', '.join(MODEL_FACTORIES)}")
+    if not api_key or not model:
+        raise ValueError(f"No API key/model configured for LLM provider {provider!r}")
+    return MODEL_FACTORIES[provider][1](model, api_key)
 
 # Caps the agent's total tool-call/LLM turns per run. The default (LangGraph's own,
 # ~25) is far more than a single-tool DOCX agent should ever need; a low explicit cap
@@ -81,8 +95,10 @@ def _extract_usage_and_last_tool_message(messages):
     return input_tokens, output_tokens, last_tool_message
 
 
-def run_docx_job(job_id: str, request: str, source_text: str) -> DocxRunResult:
-    model = ChatAnthropic(model=CLAUDE_MODEL, api_key=ANTHROPIC_API_KEY)
+def run_docx_job(job_id: str, request: str, source_text: str,
+                 provider: str = "", api_key: str = "", model_name: str = "") -> DocxRunResult:
+    provider = provider or LLM_PROVIDER
+    model = build_model(provider, api_key or LLM_API_KEYS.get(provider, ""), model_name or LLM_MODELS.get(provider, ""))
     tool = make_create_word_document_tool(job_id)
     agent = create_deep_agent(
         tools=[tool],

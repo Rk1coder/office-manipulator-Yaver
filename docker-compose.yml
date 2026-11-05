@@ -53,14 +53,19 @@ services:
       STORAGE_BASE_PATH: /data/files
       BUDGET_LIMIT_USD: ${BUDGET_LIMIT_USD:-20.00}
       FILE_TTL_HOURS: ${FILE_TTL_HOURS:-72}
-      # Air-gapped default: AI/chat features stay disabled when this is blank.
+      # Customer-supplied LLM (anthropic|gemini|openai). Air-gapped default: AI/chat features
+      # stay disabled while the selected provider's key is blank.
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_INPUT_PRICE_PER_MILLION: "${LLM_INPUT_PRICE_PER_MILLION:-${CLAUDE_INPUT_PRICE_PER_MILLION:-}}"
+      LLM_OUTPUT_PRICE_PER_MILLION: "${LLM_OUTPUT_PRICE_PER_MILLION:-${CLAUDE_OUTPUT_PRICE_PER_MILLION:-}}"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Optional: self-hosted/proxy endpoint for the Anthropic Messages API. Blank uses the
-      # official https://api.anthropic.com (see ClaudeClientProvider/ClaudeKeyVerifier).
+      # official https://api.anthropic.com (see AnthropicLlmClient/ClaudeKeyVerifier).
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
-      CLAUDE_INPUT_PRICE_PER_MILLION: "${CLAUDE_INPUT_PRICE_PER_MILLION:-}"
-      CLAUDE_OUTPUT_PRICE_PER_MILLION: "${CLAUDE_OUTPUT_PRICE_PER_MILLION:-}"
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-${CLAUDE_MODEL:-claude-sonnet-4-6}}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
       GEMINI_IMAGE_MODEL: ${GEMINI_IMAGE_MODEL:-gemini-3.1-flash-image-preview}

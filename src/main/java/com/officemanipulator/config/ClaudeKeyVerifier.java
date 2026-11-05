@@ -21,7 +21,7 @@ public class ClaudeKeyVerifier {
     private final ObjectMapper json = new ObjectMapper();
 
     @Autowired
-    public ClaudeKeyVerifier(@Value("${app.claude.base-url}") String baseUrl) {
+    public ClaudeKeyVerifier(@Value("${app.llm.anthropic.base-url:}") String baseUrl) {
         this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER).build(), baseUrl);
     }

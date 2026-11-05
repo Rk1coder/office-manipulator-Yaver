@@ -26,6 +26,7 @@ public class OfficeController {
     private final ObjectMapper json;
     private final AiAvailability aiAvailability;
     private final ConversionSourceRegistry conversionSource;
+    @org.springframework.beans.factory.annotation.Autowired private com.officemanipulator.config.LlmClientProvider llm;
     public OfficeController(OfficeService office,OfficeTokens tokens,JobService jobs,AgentOrchestrator ai,ObjectMapper json,AiAvailability aiAvailability,ConversionSourceRegistry conversionSource) {
         this.office=office;this.tokens=tokens;this.jobs=jobs;this.ai=ai;this.json=json;this.aiAvailability=aiAvailability;this.conversionSource=conversionSource;
     }
@@ -76,7 +77,10 @@ public class OfficeController {
     }
     @PostMapping("/api/office/sessions/{id}/agent") public Map<String,Object> agent(@PathVariable UUID id,
         @RequestHeader(value="Authorization",required=false) String authorization,@RequestBody Map<String,String> body) throws Exception {
-        if(!aiAvailability.enabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"AI özelliği bu dağıtımda devre dışı");
+        com.officemanipulator.llm.LlmSelection override;
+        try {override=llm.resolveOverride(body.get("llm_provider"),body.get("llm_api_key"),body.get("llm_model"));}
+        catch(IllegalArgumentException e){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,e.getMessage());}
+        if(!aiAvailability.enabled(override)) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"AI özelliği bu dağıtımda devre dışı");
         tokens.requireTicket(authorization!=null && authorization.startsWith("Bearer ")?authorization.substring(7):null,id,"agent");
         var session=office.session(id);
         if(session.closed()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Editör oturumu kapandı");
@@ -86,7 +90,7 @@ public class OfficeController {
         Job job=office.availableJob(session.savedJobId());jobs.ensureBudgetAvailable();
         JobUsage before=JobUsage.snapshot(job);
         try {
-            JsonNode result=json.readTree(ai.runDocumentEdit(job,text,instruction).editJson());
+            JsonNode result=json.readTree(llm.callWith(override,()->ai.runDocumentEdit(job,text,instruction)).editJson());
             if(!result.path("text").isTextual() || result.path("text").asText().isBlank() || result.path("text").asText().length()>40000)
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,"Agent geçerli bir metin önerisi döndürmedi");
             Map<String,Object> response=new java.util.LinkedHashMap<>();

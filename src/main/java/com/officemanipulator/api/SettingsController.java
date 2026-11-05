@@ -3,8 +3,9 @@ package com.officemanipulator.api;
 import com.officemanipulator.api.dto.ErrorResponse;
 import com.officemanipulator.api.dto.SettingsResponse;
 import com.officemanipulator.config.AppSettingsService;
-import com.officemanipulator.config.ClaudeClientProvider;
 import com.officemanipulator.config.ClaudeKeyVerifier;
+import com.officemanipulator.config.LlmClientProvider;
+import com.officemanipulator.llm.LlmProvider;
 import org.springframework.http.HttpStatus;
 import com.officemanipulator.service.GeminiImageService;
 import org.springframework.http.ResponseEntity;
@@ -13,8 +14,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Lets the Settings page read and change the Claude API key/model (and optional Gemini image
- * key) at runtime — no app restart needed; see {@link ClaudeClientProvider#reload()}.
+ * Lets the Settings page read and change the default LLM provider's API key/model (the provider
+ * itself is fixed by LLM_PROVIDER in .env) and the optional Gemini image key at runtime.
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -23,17 +24,22 @@ public class SettingsController {
     public static final String RECOMMENDED_MODEL = "claude-sonnet-4-6";
     public static final List<String> AVAILABLE_MODELS = List.of("claude-sonnet-4-6", "claude-sonnet-5");
 
-    private final ClaudeClientProvider claudeClientProvider;
+    private final LlmClientProvider claudeClientProvider;
     private final AppSettingsService settingsService;
     private final GeminiImageService geminiImageService;
-    private final ClaudeKeyVerifier keyVerifier;
+    private final String envModel;
 
-    public SettingsController(ClaudeClientProvider claudeClientProvider, AppSettingsService settingsService,
-            GeminiImageService geminiImageService, ClaudeKeyVerifier keyVerifier) {
+    public SettingsController(LlmClientProvider claudeClientProvider, AppSettingsService settingsService,
+            GeminiImageService geminiImageService, com.officemanipulator.config.ModelPricing pricing) {
         this.claudeClientProvider = claudeClientProvider;
         this.settingsService = settingsService;
         this.geminiImageService = geminiImageService;
-        this.keyVerifier = keyVerifier;
+        this.envModel = pricing.model();
+    }
+
+    /** Anthropic offers the priced built-in list; other providers only their .env model (the one priced via LLM_*_PRICE). */
+    private List<String> availableModels() {
+        return claudeClientProvider.defaultProvider() == LlmProvider.ANTHROPIC ? AVAILABLE_MODELS : List.of(envModel);
     }
 
     public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled) {}
@@ -63,9 +69,11 @@ public class SettingsController {
         String key = body.claudeApiKey() == null || body.claudeApiKey().isBlank()
                 ? claudeClientProvider.configuredKey() : body.claudeApiKey().trim();
         String model = body.model() == null || body.model().isBlank() ? claudeClientProvider.model() : body.model().trim();
-        if (!AVAILABLE_MODELS.contains(model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
+        if (key == null || key.isBlank() || key.length() > 4096 || key.chars().anyMatch(c -> c <= 32 || c >= 127))
+            return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir API anahtarı girin."));
+        if (!availableModels().contains(model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
         try {
-            keyVerifier.verify(key, model);
+            claudeClientProvider.client(claudeClientProvider.defaultProvider()).verify(key, model);
             claudeClientProvider.activateVerified(key, model);
             return ResponseEntity.ok(currentView());
         } catch (ClaudeKeyVerifier.VerificationFailure failure) {
@@ -84,11 +92,12 @@ public class SettingsController {
                 claudeClientProvider.keyVerified(),
                 claudeClientProvider.maskedKey(),
                 claudeClientProvider.model(),
-                RECOMMENDED_MODEL,
-                AVAILABLE_MODELS,
+                claudeClientProvider.defaultProvider() == LlmProvider.ANTHROPIC ? RECOMMENDED_MODEL : envModel,
+                availableModels(),
                 geminiImageService.isConfiguredFlag(),
                 geminiImageService.keyConfigured(),
-                geminiImageService.maskedApiKey()
+                geminiImageService.maskedApiKey(),
+                claudeClientProvider.defaultProvider().id()
         );
     }
 }

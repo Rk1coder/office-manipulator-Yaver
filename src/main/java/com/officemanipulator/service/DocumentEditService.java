@@ -45,6 +45,10 @@ public class DocumentEditService {
     @Value("${app.storage.file-ttl-hours:72}")
     private long fileTtlHours;
 
+    /** Generation is the last step of a request's job chain; drop its in-memory LLM override then. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.LlmClientProvider llm;
+
     @org.springframework.beans.factory.annotation.Autowired
     public DocumentEditService(
             JobRepository jobRepository,
@@ -286,6 +290,7 @@ public class DocumentEditService {
             }
         } finally {
             cancellationRegistry.unregister(editJob.getId());
+            if (llm != null) llm.releaseJob(editJob.getId());
         }
     }
 

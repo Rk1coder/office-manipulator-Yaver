@@ -11,5 +11,6 @@ public record SettingsResponse(
         List<String> availableModels,
         boolean geminiEnabled,
         boolean geminiKeyConfigured,
-        String geminiKeyMasked
+        String geminiKeyMasked,
+        String llmProvider
 ) {}

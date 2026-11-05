@@ -52,7 +52,7 @@ class AgentBenchmarkTest {
     @Autowired JobRepository jobRepository;
     @Autowired FileValidator fileValidator;
     @Autowired ObjectMapper objectMapper;
-    @Autowired com.officemanipulator.config.ClaudeClientProvider claudeClientProvider;
+    @Autowired com.officemanipulator.config.LlmClientProvider claudeClientProvider;
     @Autowired com.officemanipulator.config.ClaudeKeyVerifier claudeKeyVerifier;
 
     /** ClaudeOrchestrator refuses to run against an unverified key (same gate the Settings

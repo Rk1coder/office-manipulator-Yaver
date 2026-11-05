@@ -6,9 +6,11 @@ import com.officemanipulator.claude.dto.OrchestratorDesignResult;
 import com.officemanipulator.claude.dto.OrchestratorDocumentEditResult;
 import com.officemanipulator.claude.dto.OrchestratorPlanResult;
 import com.officemanipulator.claude.dto.OrchestratorResult;
+import com.officemanipulator.config.LlmClientProvider;
 import com.officemanipulator.config.ModelPricing;
 import com.officemanipulator.domain.Job;
 import com.officemanipulator.domain.OutputFormat;
+import com.officemanipulator.llm.LlmSelection;
 import com.officemanipulator.storage.FileStorageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -16,8 +18,6 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -42,16 +42,19 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
     private final ObjectMapper objectMapper;
     private final FileStorageService storageService;
     private final ModelPricing pricing;
+    private final LlmClientProvider llm;
 
     public DeepAgentOrchestrator(
             ObjectMapper objectMapper,
             FileStorageService storageService,
             ModelPricing pricing,
+            LlmClientProvider llm,
             @Value("${app.agent.deep-agents.base-url}") String baseUrl
     ) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.pricing = pricing;
+        this.llm = llm;
         // HTTP/1.1 forced: the JDK client's default HTTP/2 upgrade attempt confuses uvicorn's
         // h11 parser (it logs "Unsupported upgrade request" and the request body never arrives),
         // which the Python side only ever receives as plain HTTP/1.1 FastAPI/uvicorn.
@@ -70,10 +73,16 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
                     "DeepAgentOrchestrator currently supports DOCX only (PoC scope). "
                             + "Set app.agent.provider=legacy for other formats.");
         }
+        // The Python service builds its model from exactly this (whitelisted) provider/key/model,
+        // so a request's override reaches it too; it travels only on the internal network.
+        LlmSelection selection = llm.selectionFor(job.getId());
         Map<String, Object> body = Map.of(
                 "jobId", job.getId().toString(),
                 "request", job.getRequest(),
-                "sourceText", job.getSourceText() == null ? "" : job.getSourceText()
+                "sourceText", job.getSourceText() == null ? "" : job.getSourceText(),
+                "llmProvider", selection.provider().id(),
+                "llmApiKey", selection.apiKey(),
+                "llmModel", selection.model()
         );
         try {
             String response = restClient.post()
@@ -92,7 +101,7 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
             int inputTokens = root.path("inputTokens").asInt(0);
             int outputTokens = root.path("outputTokens").asInt(0);
             Path outputPath = storageService.resolveOutputPath(job.getId(), OutputFormat.DOCX);
-            return new OrchestratorResult(outputPath, inputTokens, outputTokens, cost(inputTokens, outputTokens));
+            return new OrchestratorResult(outputPath, inputTokens, outputTokens, pricing.cost(selection.model(), inputTokens, outputTokens));
         } catch (Exception e) {
             throw new IllegalStateException("Deep agent orchestration failed for job " + job.getId() + ": " + e.getMessage(), e);
         }
@@ -110,12 +119,6 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
         if (message.contains("exceeded the") && message.contains("timeout")) return "timeout";
         if (message.contains("did not call create_word_document")) return "no_tool_call";
         return "script_error";
-    }
-
-    private BigDecimal cost(long inputTokens, long outputTokens) {
-        return pricing.input().multiply(BigDecimal.valueOf(inputTokens))
-                .add(pricing.output().multiply(BigDecimal.valueOf(outputTokens)))
-                .divide(BigDecimal.valueOf(1_000_000), 6, RoundingMode.HALF_UP);
     }
 
     @Override

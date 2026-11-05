@@ -50,8 +50,7 @@ class BackendLifecycleTest {
   when(message.content()).thenReturn(List.of(ContentBlock.ofToolUse(tool)));
   when(client.messages().create(any(MessageCreateParams.class))).thenReturn(message).thenThrow(new IllegalStateException("transport error"));
   ToolDispatcher dispatcher=mock(ToolDispatcher.class);when(dispatcher.dispatch(anyString(),anyString(),any(),anyMap())).thenThrow(new IllegalStateException("bad script"));
-  com.officemanipulator.config.ClaudeClientProvider provider=mock(com.officemanipulator.config.ClaudeClientProvider.class);
-  when(provider.client()).thenReturn(client);when(provider.model()).thenReturn("test");
+  var provider=com.officemanipulator.llm.TestLlm.provider(client,"test");
   ClaudeOrchestrator ai=new ClaudeOrchestrator(provider,new ToolRegistry(),dispatcher,new FileStorageService(tmp.toString()),mapper);
   ReflectionTestUtils.setField(ai,"maxTokens",1000L);ReflectionTestUtils.setField(ai,"maxToolTurns",2);
   ReflectionTestUtils.setField(ai,"inputPricePerMillion",BigDecimal.valueOf(2));ReflectionTestUtils.setField(ai,"outputPricePerMillion",BigDecimal.TEN);

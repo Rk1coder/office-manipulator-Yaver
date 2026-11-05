@@ -4,7 +4,6 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officemanipulator.config.ClaudeClientProvider;
 import com.officemanipulator.domain.*;
 import com.officemanipulator.storage.FileStorageService;
 import org.junit.jupiter.api.Test;
@@ -17,8 +16,7 @@ import static org.mockito.Mockito.*;
 class PlanResponseTest {
     @Test void readsStructuredPlanPreservingQuotesInsteadOfUntrustedText() throws Exception {
         var client = mock(AnthropicClient.class, RETURNS_DEEP_STUBS);
-        var provider = mock(ClaudeClientProvider.class);
-        when(provider.client()).thenReturn(client); when(provider.model()).thenReturn("test");
+        var provider = com.officemanipulator.llm.TestLlm.provider(client, "test");
         var response = mock(Message.class); var usage = mock(Usage.class);
         when(response.usage()).thenReturn(usage);
         var tool = mock(ToolUseBlock.class);

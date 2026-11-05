@@ -1,7 +1,10 @@
 package com.officemanipulator.claude;
 
 import com.anthropic.core.JsonValue;
+import com.anthropic.core.ObjectMappers;
 import com.anthropic.models.messages.Tool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.officemanipulator.llm.LlmClient;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -10,8 +13,8 @@ import java.util.Map;
 @Component
 public class ToolRegistry {
 
-    public List<Tool> allTools() {
-        return List.of(
+    public List<LlmClient.Tool> allTools() {
+        return java.util.stream.Stream.of(
                 buildCreateWord(),
                 buildCreatePresentation(),
                 buildCreatePdf(),
@@ -19,10 +22,17 @@ public class ToolRegistry {
                 buildCreateXlsx(),
                 buildCreateText(),
                 buildCreateOdb()
-        );
+        ).map(ToolRegistry::toLlm).toList();
     }
 
-    public Tool planTool(String format) {
+    /** Schemas are authored with the Anthropic SDK builders below; adapters receive them as plain JSON Schema. */
+    private static LlmClient.Tool toLlm(Tool tool) {
+        JsonNode node = ObjectMappers.jsonMapper().valueToTree(tool);
+        return new LlmClient.Tool(node.path("name").asText(), node.path("description").asText(null),
+                node.path("input_schema"), node.path("strict").asBoolean(false));
+    }
+
+    public LlmClient.Tool planTool(String format) {
         Map<String, Object> text = Map.of("type", "string");
         Map<String, Object> nullableText = Map.of("type", List.of("string", "null"));
         Map<String, Object> item = objectSchema(Map.of(
@@ -35,14 +45,14 @@ public class ToolRegistry {
                 "outline", Map.of("type", "array", "items", item), "estimatedSlides", Map.of("type", "integer"));
         var builder = Tool.InputSchema.Properties.builder();
         properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
-        return Tool.builder().name("submit_plan").description("Submit the complete document plan using this schema.").strict(true)
+        return toLlm(Tool.builder().name("submit_plan").description("Submit the complete document plan using this schema.").strict(true)
                 .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
-                        .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build()).build();
+                        .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build()).build());
     }
 
     /** Design-director tool: Claude's first-pass call for a presentation, choosing ONLY the visual
      * and narrative direction — never slide content. See SystemPrompts.DESIGN_DIRECTOR. */
-    public Tool designDirectionTool() {
+    public LlmClient.Tool designDirectionTool() {
         Map<String, Object> text = Map.of("type", "string");
         Map<String, Object> boolField = Map.of("type", "boolean");
         Map<String, Object> density = Map.of("type", "string", "enum", List.of("low", "medium", "high"));
@@ -64,17 +74,17 @@ public class ToolRegistry {
         properties.put("reason", text);
         var builder = Tool.InputSchema.Properties.builder();
         properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
-        return Tool.builder().name("submit_design_direction")
+        return toLlm(Tool.builder().name("submit_design_direction")
                 .description("Submit ONLY the visual and narrative design direction for this presentation — no titles, bullets, or any slide content.")
                 .strict(true)
                 .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
                         .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build())
-                .build();
+                .build());
     }
 
     /** Yaver in-editor chat panel's edit call: returns both the rewritten text AND structured
      * formatting instructions the ONLYOFFICE bridge can apply via its internal document API. */
-    public Tool documentEditTool() {
+    public LlmClient.Tool documentEditTool() {
         Map<String, Object> text = Map.of("type", "string");
         Map<String, Object> nullableText = Map.of("type", List.of("string", "null"));
         Map<String, Object> nullableBool = Map.of("type", List.of("boolean", "null"));
@@ -93,12 +103,12 @@ public class ToolRegistry {
         Map<String, Object> properties = Map.of("text", text, "formatting", formatting);
         var builder = Tool.InputSchema.Properties.builder();
         properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
-        return Tool.builder().name("submit_document_edit")
+        return toLlm(Tool.builder().name("submit_document_edit")
                 .description("Submit the rewritten text and any requested visual formatting for the selected fragment.")
                 .strict(true)
                 .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
                         .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build())
-                .build();
+                .build());
     }
 
     private static Map<String, Object> objectSchema(Map<String, Object> properties) {

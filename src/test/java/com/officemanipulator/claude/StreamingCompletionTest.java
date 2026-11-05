@@ -4,7 +4,6 @@ import com.anthropic.core.ObjectMappers;
 import com.anthropic.core.http.StreamResponse;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officemanipulator.config.ClaudeClientProvider;
 import com.officemanipulator.domain.*;
 import com.officemanipulator.storage.FileStorageService;
 import org.junit.jupiter.api.Test;
@@ -15,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class StreamingCompletionTest {
  @Test void longPlanIsAccumulatedFromStreamBeforeUsageAndResultAreCommitted() throws Exception {
-  var client=mock(AnthropicClient.class,RETURNS_DEEP_STUBS);var provider=mock(ClaudeClientProvider.class);
-  when(provider.client()).thenReturn(client);when(provider.model()).thenReturn("test");
+  var client = mock(AnthropicClient.class, RETURNS_DEEP_STUBS);
+        var provider = com.officemanipulator.llm.TestLlm.provider(client, "test");
   String[] json={
    """ 
    {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","model":"test","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":0}}}

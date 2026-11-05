@@ -19,3 +19,16 @@ def test_anthropic_profile_excludes_default_filesystem_and_shell_tools():
 def test_create_word_document_is_not_excluded():
     profile = harness._get_harness_profile("anthropic")
     assert "create_word_document" not in profile.excluded_tools
+
+
+def test_every_whitelisted_provider_gets_the_restricted_profile():
+    for profile_key, _ in app.agent.MODEL_FACTORIES.values():
+        profile = harness._get_harness_profile(profile_key)
+        assert profile is not None, profile_key
+        assert profile.excluded_tools == frozenset(EXPECTED_EXCLUDED)
+
+
+def test_unknown_provider_is_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        app.agent.build_model("http://evil.example", "key", "model")
