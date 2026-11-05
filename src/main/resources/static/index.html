@@ -342,6 +342,30 @@ body{margin:0}
   .yv-tab[data-active="true"]{border-bottom-color:var(--ac)}
 }
 @media (prefers-reduced-motion:reduce){.yv-theme-icon,.yv-tab-panel{animation:none}.yv-gear svg{transition:none}}
+/* Sidebar info cards: a dismissible stack; the "screenshots" fan out on hover. */
+.yv-info{position:relative;flex:none;margin:0 12px 14px}
+.yv-info[data-depth="1"]::after,.yv-info[data-depth="2"]::after,.yv-info[data-depth="2"]::before{content:"";position:absolute;left:8px;right:8px;bottom:-5px;height:12px;border:1px solid var(--ln);border-top:0;border-radius:0 0 10px 10px;background:var(--sf);opacity:.9}
+.yv-info[data-depth="2"]::before{left:16px;right:16px;bottom:-10px;opacity:.6}
+.yv-info-card{position:relative;z-index:1;background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:3px;animation:yvinfoin .32s cubic-bezier(.2,.8,.2,1) both}
+.yv-info-card[data-leaving="true"]{animation:yvinfoout .26s ease-in both}
+.yv-info-eyebrow{margin:0;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:var(--ac)}
+.yv-info-title{margin:0;font-size:13.5px;font-weight:650;color:var(--tx)}
+.yv-info-desc{margin:0;font-size:12px;line-height:1.45;color:var(--mu);text-wrap:pretty}
+.yv-info-media{position:relative;height:66px;margin:8px 0 6px;transition:height .3s cubic-bezier(.2,.8,.2,1)}
+.yv-info-card:hover .yv-info-media,.yv-info-card:focus-within .yv-info-media{height:142px}
+.yv-info-shot{position:absolute;left:0;right:0;top:0;height:50px;box-sizing:border-box;border:1px solid var(--ln2);border-radius:7px;background:var(--sb);padding:6px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;z-index:calc(3 - var(--i));transform:translateY(calc(var(--i) * 7px)) scale(calc(1 - var(--i) * .05));transform-origin:top center;opacity:calc(1 - var(--i) * .25);transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}
+.yv-info-card:hover .yv-info-shot,.yv-info-card:focus-within .yv-info-shot{transform:translateY(calc(var(--i) * 46px)) rotate(calc((var(--i) - 1) * -1.2deg));opacity:1}
+.yv-info-shot-bar{display:flex;gap:3px}.yv-info-shot-bar i{width:5px;height:5px;border-radius:50%;background:var(--ln2)}
+.yv-info-shot b{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yv-info-shot span:last-child{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yv-info-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.yv-info-foot button{border:0;background:transparent;font:inherit;font-size:12px;cursor:pointer;padding:3px 0;color:var(--mu)}
+.yv-info-foot button:hover{color:var(--tx)}
+.yv-info-foot .yv-info-go{color:var(--tx);text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;gap:4px}
+.yv-info-pre{margin:0;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;background:var(--sb);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.55;color:var(--tx);white-space:pre-wrap;word-break:break-word}
+@keyframes yvinfoin{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes yvinfoout{to{opacity:0;transform:translateX(-30px) rotate(-4deg)}}
+@media (prefers-reduced-motion:reduce){.yv-info-card,.yv-info-card[data-leaving="true"]{animation:none}.yv-info-media,.yv-info-shot{transition:none}}
 </style>
 </helmet>
 <div data-yv="{{ theme }}" style="height:100vh;display:flex;background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.5;overflow:hidden">
@@ -432,7 +456,28 @@ body{margin:0}
         </sc-if>
       </sc-for>
     </div>
+    <sc-if value="{{ infoTop }}" hint-placeholder-val="{{ true }}">
+      <div class="yv-info" data-depth="{{ infoDepth }}">
+        <div class="yv-info-card" data-leaving="{{ infoLeaving }}">
+          <p class="yv-info-eyebrow">{{ infoTop.eyebrow }} · {{ infoTop.pos }}</p>
+          <p class="yv-info-title">{{ infoTop.title }}</p>
+          <p class="yv-info-desc">{{ infoTop.desc }}</p>
+          <div class="yv-info-media" aria-hidden="true">
+            <sc-for list="{{ infoTop.media }}" as="m" hint-placeholder-count="3">
+              <div class="yv-info-shot" style="--i:{{ m.i }}"><span class="yv-info-shot-bar"><i></i><i></i><i></i></span><b>{{ m.head }}</b><span>{{ m.line }}</span></div>
+            </sc-for>
+          </div>
+          <div class="yv-info-foot">
+            <button type="button" sc-camel-on-click="{{ dismissInfo }}">{{ infoDismissLabel }}</button>
+            <button type="button" class="yv-info-go" sc-camel-on-click="{{ openInfoTop }}">{{ infoTop.action }} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
     <div style="border-top:1px solid var(--ln);padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+      <sc-if value="{{ infoAllDismissed }}" hint-placeholder-val="{{ false }}">
+        <button type="button" sc-camel-on-click="{{ openInfoFirst }}" style="border:0;background:transparent;color:var(--mu);font:inherit;font-size:12px;cursor:pointer;padding:0;text-align:left;display:flex;align-items:center;gap:6px" style-hover="color:var(--tx)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>{{ infoGuideLabel }}</button>
+      </sc-if>
       <div style="display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11px">
           <span style="color:var(--mu)">{{ t.budget }}</span>
@@ -1219,6 +1264,37 @@ body{margin:0}
   <div style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--tx);color:var(--bg);border-radius:8px;padding:10px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.2)">{{ toast }}</div>
 </sc-if>
 
+<sc-if value="{{ infoOpen }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" aria-label="{{ infoGuideLabel }}" sc-camel-on-click="{{ infoBackdrop }}" style="position:fixed;inset:0;z-index:26;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:20px">
+    <div class="yv-settings" style="background:var(--sf);border:1px solid var(--ln);border-radius:12px;max-width:760px;width:100%;max-height:90vh;overflow:auto;display:flex;flex-direction:column;animation:yvinfoin .25s cubic-bezier(.2,.8,.2,1) both">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--ln)">
+        <span style="font-size:16px;font-weight:650;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>{{ infoGuideLabel }}</span>
+        <button sc-camel-on-click="{{ closeInfo }}" aria-label="{{ infoCloseLabel }}" style="border:1px solid var(--ln);background:transparent;color:var(--mu);border-radius:6px;width:28px;height:28px;cursor:pointer">✕</button>
+      </div>
+      <div class="yv-settings-body">
+        <div role="tablist" aria-orientation="{{ settingsTabOrientation }}" aria-label="{{ infoGuideLabel }}" class="yv-tabs-list">
+          <sc-for list="{{ infoTabs }}" as="it" hint-placeholder-count="3">
+            <button type="button" role="tab" aria-selected="{{ it.active }}" data-active="{{ it.active }}" class="yv-tab" sc-camel-on-click="{{ it.select }}"><span>{{ it.title }}</span></button>
+          </sc-for>
+        </div>
+        <div role="tabpanel" class="yv-tab-panel" data-key="{{ infoPanel.id }}">
+          <div>
+            <p class="yv-info-eyebrow">{{ infoPanel.eyebrow }}</p>
+            <p style="margin:4px 0 0;font-size:18px;font-weight:650">{{ infoPanel.title }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--mu);line-height:1.55">{{ infoPanel.desc }}</p>
+          </div>
+          <sc-for list="{{ infoPanel.sections }}" as="sec" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <p style="margin:0;font-size:13.5px;font-weight:650">{{ sec.h }}</p>
+              <p style="margin:0;font-size:13px;line-height:1.6;color:var(--mu);text-wrap:pretty">{{ sec.p }}</p>
+              <sc-if value="{{ sec.code }}" hint-placeholder-val="{{ false }}"><pre class="yv-info-pre">{{ sec.code }}</pre></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
 <sc-if value="{{ guideOpen }}" hint-placeholder-val="{{ false }}">
   <div role="dialog" aria-label="Kullanım rehberi" style="position:fixed;right:20px;bottom:20px;max-width:320px;width:calc(100% - 40px);background:var(--sf);border:1px solid var(--ln);border-radius:12px;padding:16px;box-shadow:0 12px 32px rgba(0,0,0,.25);z-index:29;display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;align-items:center;justify-content:space-between">
@@ -1445,7 +1521,7 @@ const numOf = x => parseFloat(String(x).replace('−', '-').replace(/\s/g, '').r
 const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 class Component extends DCLogic {
-  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsTab: 'ai', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, attachedFile: null, attachedFileName: '', attaching: false };
+  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsTab: 'ai', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, infoDismissed: [], infoLeaving: false, infoOpen: null, attachedFile: null, attachedFileName: '', attaching: false };
   timers = [];
   epoch = 0;
   previewEpoch = 0;
@@ -1471,6 +1547,7 @@ class Component extends DCLogic {
     try {
       if (!localStorage.getItem('yv_onboarded')) this.setState({ guideOpen: true, guideStep: 0 });
     } catch (e) {}
+    try { this.setState({ infoDismissed: JSON.parse(localStorage.getItem('yv_info_dismissed') || '[]') }); } catch (e) {}
     this.onResize = () => this.setState({ w: window.innerWidth });
     this.onKeyG = e => { if (this.state.officeJobId) return; const tg = (e.target.tagName || '').toLowerCase(); if (this.state.viewer) { if ((tg === 'textarea' || tg === 'input' || e.target.isContentEditable) && e.key !== 'Escape') return; if (e.key === 'Escape') this.setState({ viewer: false }); else if (e.key === 'ArrowRight') this.setState(s => ({ vSlide: Math.min(Math.max(0, ((s.previewData && s.previewData.slides) || []).length - 1), s.vSlide + 1) })); else if (e.key === 'ArrowLeft') this.setState(s => ({ vSlide: Math.max(0, s.vSlide - 1) })); return; } const tag = (e.target.tagName || '').toLowerCase(); if (e.key === 'n' && tag !== 'textarea' && tag !== 'input' && !e.metaKey && !e.ctrlKey) this.reset(); };
     this.onTextSel = () => {
@@ -1671,6 +1748,86 @@ class Component extends DCLogic {
   closeSettings() {
     if (this.state.settingsVerifying || this.state.settingsSaving) return;
     this.setState({ settingsOpen: false, settingsActivated: false, settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
+  }
+  infoCards() {
+    const host = typeof location !== 'undefined' ? location.origin : 'http://localhost:8081';
+    const tr = this.state.lang !== 'en';
+    const media = rows => rows.map(([head, line], i) => ({ head, line, i }));
+    return tr ? [
+      { id: 'usage', eyebrow: 'BAŞLANGIÇ', title: 'Yaver nasıl kullanılır?', desc: 'İsteğini yaz, planı onayla, önizle ve düzenle.', action: 'Adımlar',
+        media: media([['1 · İste', '"Karıncalar hakkında 7 slayt"'], ['2 · Önizle', 'PPTX · plan → onay → üretim'], ['3 · Düzenle', 'Yaver Agent: "başlığı kısalt"']]),
+        sections: [
+          { h: '1. İsteğini yaz', p: 'Üstteki kutuya ne istediğini yaz. Formatı "Otomatik" bırakabilir ya da Word, PowerPoint, PDF, Excel, CSV ve diğerlerinden birini seçebilirsin. Kaynak metin yapıştırabilir veya dosya ekleyebilirsin.' },
+          { h: '2. Planı onayla', p: 'Yaver önce içeriğin taslak planını çıkarır. Planı gözden geçirip onayladığında belge üretilir; ilerleme ve maliyet canlı görünür.' },
+          { h: '3. Önizle ve indir', p: 'Hazır belge sağda önizlenir. Dosya adı içerikten türetilir; indirme düğmesiyle kaydedebilirsin.' },
+          { h: '4. Düzenle', p: '"Belgeyi düzenle" ile belgeyi editörde aç. Sağdaki Yaver Agent paneline talimat ver; önerilen değişikliği görüp uygula ya da vazgeç. Önceki sürümler saklanır.' },
+          { h: 'Önce: anahtarını ekle', p: 'Sol alttaki Ayarlar → AI sekmesinden sağlayıcını (Anthropic, Gemini, OpenAI) seç, kendi API anahtarını gir ve "Kontrol et" ile doğrula. Maliyet senin anahtarına yansır.' }
+        ] },
+      { id: 'api', eyebrow: 'GELİŞTİRİCİ', title: 'API ile entegre et', desc: 'Belge üretimini kendi uygulamana bağla: REST ve canlı olay akışı.', action: 'Örnekler',
+        media: media([['POST /api/chat', '{ message, format }'], ['GET /api/jobs/{id}/events', 'SSE · canlı durum'], ['GET /api/files/{id}/download', '→ hazır dosya']]),
+        sections: [
+          { h: '1. İş oluştur', p: 'İsteği gönder; yanıtta işin kimliği (jobId) döner. format boş bırakılırsa otomatik seçilir.',
+            code: "curl -X POST " + host + "/api/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"message\": \"Q3 satış raporu\", \"format\": \"DOCX\"}'\n\n→ {\"jobId\": \"…\", \"status\": \"PENDING\", \"format\": \"DOCX\"}" },
+          { h: '2. Durumu izle', p: 'Tek seferlik sorgu için /api/jobs/{id}, canlı akış için Server-Sent Events uç noktasını kullan.',
+            code: "curl " + host + "/api/jobs/$JOB_ID\ncurl -N " + host + "/api/jobs/$JOB_ID/events" },
+          { h: '3. Dosyayı indir', p: 'İş tamamlandığında dosyayı indir.', code: "curl -OJ " + host + "/api/files/$JOB_ID/download" },
+          { h: 'Kendi anahtarınla çağır', p: 'İstek gövdesine llm_* alanlarını eklersen o istek sunucu varsayılanı yerine senin anahtarınla çalışır. Anahtar saklanmaz. Sağlayıcı yalnızca anthropic, gemini veya openai olabilir; adres kabul edilmez.',
+            code: "{\n  \"message\": \"…\",\n  \"llm_provider\": \"gemini\",\n  \"llm_api_key\": \"$GEMINI_API_KEY\",\n  \"llm_model\": \"gemini-2.5-pro\"\n}" },
+          { h: 'Var olan belgeyi düzenle', p: 'Bir işin çıktısını talimatla güncelle.', code: "curl -X POST " + host + "/api/jobs/$JOB_ID/edit \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"instruction\": \"Özeti 3 maddeye indir\"}'" },
+          { h: 'Güvenlik notu', p: 'Bu sürümde API kimlik doğrulaması yoktur. Sunucuyu yalnızca güvenilir bir iç ağda ya da kimlik doğrulayan bir ters vekil sunucunun arkasında açın.' }
+        ] },
+      { id: 'llm', eyebrow: 'MODELLER', title: 'Hangi LLM ne yapar?', desc: 'Anthropic, Gemini ve OpenAI: kendi anahtarınla seç.', action: 'Karşılaştır',
+        media: media([['Claude · Anthropic', 'sunum tasarımı · uzun rapor'], ['Gemini · Google', 'belge + görsel üretimi'], ['GPT · OpenAI', 'metin · tablo · özet']]),
+        sections: [
+          { h: 'Claude (Anthropic)', p: 'Tasarım kurallarına en iyi uyan ve görsel incelemeyi en iyi değerlendiren model. Sunumlar, uzun raporlar ve karmaşık belgeler için önerilir.' },
+          { h: 'Gemini (Google)', p: 'Tüm belge türlerini üretir. Aynı anahtarla sunumlara yapay zekâ görselleri de eklenebilir (Ayarlar → Görseller; fiyat girilmesi gerekir). gemini-2.5-pro daha kaliteli, flash daha hızlı ve ucuzdur.' },
+          { h: 'GPT (OpenAI)', p: 'gpt-5, gpt-5-mini ve gpt-4.1 ile metin, tablo, özet ve rapor işleri. Bu uygulamada OpenAI ile görsel üretimi yoktur.' },
+          { h: 'Hepsinde ortak', p: 'Her sağlayıcıda tüm formatlar, plan onayı, slaytları görüntüleyip denetleyen görsel inceleme ve Yaver Agent düzenlemesi çalışır. Listede olmayan bir modeli Ayarlar\'da "Diğer (elle gir)" ile yazabilirsin.' },
+          { h: 'Maliyet', p: 'Ücreti kendi anahtarının sağlayıcısı alır. Sol alttaki bütçe göstergesi harcamayı izler; fiyatı bilinmeyen modeller sunucu anahtarıyla çalıştırılmaz.' }
+        ] }
+    ] : [
+      { id: 'usage', eyebrow: 'GET STARTED', title: 'How to use Yaver', desc: 'Describe it, approve the plan, preview and edit.', action: 'Steps',
+        media: media([['1 · Ask', '"7 slides about ants"'], ['2 · Preview', 'PPTX · plan → approve → build'], ['3 · Edit', 'Yaver Agent: "shorten the title"']]),
+        sections: [
+          { h: '1. Describe what you need', p: 'Type your request in the box at the top. Leave the format on "Auto" or pick Word, PowerPoint, PDF, Excel, CSV and more. You can paste source text or attach a file.' },
+          { h: '2. Approve the plan', p: 'Yaver drafts an outline first. Review and approve it to start generating; progress and cost are shown live.' },
+          { h: '3. Preview and download', p: 'The finished document is previewed on the right. File names come from the content; use the download button to save it.' },
+          { h: '4. Edit', p: 'Open "Edit document" and give instructions in the Yaver Agent panel; review the proposed change, then apply or discard it. Earlier versions are kept.' },
+          { h: 'First: add your key', p: 'In Settings → AI (bottom-left), pick a provider (Anthropic, Gemini, OpenAI), enter your own API key and press "Verify". Costs go to your key.' }
+        ] },
+      { id: 'api', eyebrow: 'DEVELOPERS', title: 'Integrate via API', desc: 'Connect document generation to your app: REST plus a live event stream.', action: 'Examples',
+        media: media([['POST /api/chat', '{ message, format }'], ['GET /api/jobs/{id}/events', 'SSE · live status'], ['GET /api/files/{id}/download', '→ finished file']]),
+        sections: [
+          { h: '1. Create a job', p: 'Send the request; the response carries the job id. Omit format to let Yaver choose.',
+            code: "curl -X POST " + host + "/api/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"message\": \"Q3 sales report\", \"format\": \"DOCX\"}'\n\n→ {\"jobId\": \"…\", \"status\": \"PENDING\", \"format\": \"DOCX\"}" },
+          { h: '2. Track status', p: 'Poll /api/jobs/{id} once, or stream Server-Sent Events.', code: "curl " + host + "/api/jobs/$JOB_ID\ncurl -N " + host + "/api/jobs/$JOB_ID/events" },
+          { h: '3. Download the file', p: 'Download the file when the job is done.', code: "curl -OJ " + host + "/api/files/$JOB_ID/download" },
+          { h: 'Bring your own key', p: 'Add llm_* fields to the request body to run that request with your key instead of the server default. The key is not stored. The provider must be anthropic, gemini or openai; URLs are not accepted.',
+            code: "{\n  \"message\": \"…\",\n  \"llm_provider\": \"gemini\",\n  \"llm_api_key\": \"$GEMINI_API_KEY\",\n  \"llm_model\": \"gemini-2.5-pro\"\n}" },
+          { h: 'Edit an existing document', p: 'Update a job\'s output with an instruction.', code: "curl -X POST " + host + "/api/jobs/$JOB_ID/edit \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"instruction\": \"Cut the summary to 3 bullets\"}'" },
+          { h: 'Security note', p: 'This version has no API authentication. Expose the server only on a trusted internal network or behind a reverse proxy that authenticates.' }
+        ] },
+      { id: 'llm', eyebrow: 'MODELS', title: 'Which LLM does what?', desc: 'Anthropic, Gemini and OpenAI: pick with your own key.', action: 'Compare',
+        media: media([['Claude · Anthropic', 'deck design · long reports'], ['Gemini · Google', 'documents + image generation'], ['GPT · OpenAI', 'text · tables · summaries']]),
+        sections: [
+          { h: 'Claude (Anthropic)', p: 'Follows the design rules and the visual review most closely. Recommended for decks, long reports and complex documents.' },
+          { h: 'Gemini (Google)', p: 'Generates every format. With the same key it can add AI images to decks (Settings → Images; prices required). gemini-2.5-pro is higher quality, flash is faster and cheaper.' },
+          { h: 'GPT (OpenAI)', p: 'gpt-5, gpt-5-mini and gpt-4.1 for text, tables, summaries and reports. Image generation with OpenAI is not available in this app.' },
+          { h: 'Shared by all', p: 'Every provider supports all formats, plan approval, the visual review that renders and checks slides, and Yaver Agent editing. Type any other model under Settings → "Other (enter manually)".' },
+          { h: 'Cost', p: 'Your key\'s provider bills you. The budget meter in the bottom-left tracks spend; models with unknown prices never run on the server key.' }
+        ] }
+    ];
+  }
+  dismissInfo() {
+    if (this.state.infoLeaving) return;
+    const top = this.infoCards().find(c => !this.state.infoDismissed.includes(c.id));
+    if (!top) return;
+    this.setState({ infoLeaving: true });
+    setTimeout(() => {
+      const infoDismissed = [...this.state.infoDismissed, top.id];
+      this.setState({ infoDismissed, infoLeaving: false });
+      try { localStorage.setItem('yv_info_dismissed', JSON.stringify(infoDismissed)); } catch (e) {}
+    }, 260);
   }
   guideSteps() {
     const tr = this.state.lang !== 'en';
@@ -2676,6 +2833,29 @@ class Component extends DCLogic {
       apiHowToSteps: this.providerMeta(s.settingsProviderInput).steps,
       apiHowToLinkLabel: L === 'tr' ? this.providerMeta(s.settingsProviderInput).console + ' sayfasını aç' : 'Open ' + this.providerMeta(s.settingsProviderInput).console,
       apiHowToLinkUrl: this.providerMeta(s.settingsProviderInput).url,
+      ...(() => {
+        const cards = this.infoCards();
+        const left = cards.filter(c => !s.infoDismissed.includes(c.id));
+        const top = left[0];
+        const open = cards.find(c => c.id === s.infoOpen);
+        return {
+          infoTop: top ? { ...top, pos: (cards.indexOf(top) + 1) + '/' + cards.length } : null,
+          infoDepth: String(Math.min(2, Math.max(0, left.length - 1))),
+          infoLeaving: s.infoLeaving,
+          infoAllDismissed: !top,
+          infoOpen: !!open,
+          infoPanel: open || cards[0],
+          infoTabs: cards.map(c => ({ title: c.title, active: c.id === s.infoOpen, select: () => this.setState({ infoOpen: c.id }) })),
+          infoDismissLabel: L === 'tr' ? 'Kapat' : 'Dismiss',
+          infoCloseLabel: L === 'tr' ? 'Kapat' : 'Close',
+          infoGuideLabel: L === 'tr' ? 'Rehber ve bilgi' : 'Guide & info',
+          dismissInfo: () => this.dismissInfo(),
+          openInfoTop: () => top && this.setState({ infoOpen: top.id }),
+          openInfoFirst: () => this.setState({ infoOpen: cards[0].id }),
+          closeInfo: () => this.setState({ infoOpen: null }),
+          infoBackdrop: e => { if (e.target === e.currentTarget) this.setState({ infoOpen: null }); }
+        };
+      })(),
       guideOpen: s.guideOpen,
       guideStepData: (() => { const steps = this.guideSteps(); return steps[Math.min(s.guideStep, steps.length - 1)] || steps[0]; })(),
       guideStepIndex: s.guideStep + 1,
