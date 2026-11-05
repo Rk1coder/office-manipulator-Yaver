@@ -68,6 +68,7 @@ public class ToolRegistry {
         properties.put("useLargeNumbers", boolField);
         properties.put("useQuoteSlides", boolField);
         properties.put("useComparisonSlides", boolField);
+        properties.put("fontPairing", Map.of("type", "string", "enum", FontPairing.names()));
         properties.put("imageStyle", text);
         properties.put("chartStyle", text);
         properties.put("maxBulletSlideRatio", Map.of("type", "number"));
@@ -210,8 +211,8 @@ public class ToolRegistry {
                         - DARK backgrounds for title/conclusion slides; light for content slides
                         - Every slide needs at least one visual element: shape, icon row, stat callout, or chart
                         - NEVER add decorative stripes/color bars along slide edges
-                        - NEVER use Aptos font; use Calibri (body), Cambria (headers)
-                        - Titles: 30-36pt bold; Body: 20-24pt; Captions: at least 14pt. Move detail into speaker notes.
+                        - Fonts: only the faces of the DESIGN DIRECTION's fontPairing (see the typography guide); never Aptos
+                        - Titles: 28-32pt bold; Body: 18-20pt; Captions: at least 12pt. Move detail into speaker notes.
                         - Vary layouts: two-column, card grids, stat callouts, comparison tables, flow diagrams
                         - For data: use large stat callouts (60-72pt numbers) or native pptx charts
                         - Leave 0.5" margins; 0.3-0.5" gaps between content blocks
