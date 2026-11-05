@@ -1,6 +1,6 @@
 # Office Manipulator — Kurulum (internetsiz ortam)
 
-Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çalıştırılması için hazırlanmış teslim paketidir. Dosya yükleme/indirme, belge önizleme, biçim dönüştürme (ör. Word → PDF) ve ONLYOFFICE ile tarayıcı içi belge düzenleme **tamamen yerel** çalışır — internet gerekmez. AI (Claude sohbeti, AI ile belge üretimi, Yaver'in yazım önerileri) isteğe bağlıdır ve yalnızca internet varsa kullanılabilir; API anahtarı girilmediği sürece bu özellikler kapalı kalır, geri kalan her şey etkilenmeden çalışır.
+Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çalıştırılması için hazırlanmış teslim paketidir. Dosya yükleme/indirme, belge önizleme, biçim dönüştürme (ör. Word → PDF) ve ONLYOFFICE ile tarayıcı içi belge düzenleme **tamamen yerel** çalışır — internet gerekmez. AI (sohbet, AI ile belge üretimi, Yaver'in yazım önerileri; Claude, Gemini veya GPT ile) isteğe bağlıdır ve yalnızca internet varsa kullanılabilir; API anahtarı girilmediği sürece bu özellikler kapalı kalır, geri kalan her şey etkilenmeden çalışır.
 
 ## Ekran görüntüleri
 
@@ -19,6 +19,35 @@ Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çal�
 | DOCX düzenleme (ONLYOFFICE) |
 |---|
 | ![DOCX düzenleme](docs/screenshots/docx-duzenleme.webp) |
+
+## Yeni özellikler
+
+| Üç yapay zekâ sağlayıcısı: Anthropic, Gemini, OpenAI | Bilgi kartları ve kullanım rehberi |
+|---|---|
+| ![Çoklu LLM ayarları](docs/screenshots/coklu-llm-ayarlar.gif) | ![Bilgi kartları](docs/screenshots/bilgi-kartlari.gif) |
+| Ayarlar'da sağlayıcı seçilir, kendi API anahtarı girilip doğrulanır; model listeden seçilir ya da "Diğer (elle gir)" ile yazılır. Ayarlar dikey sekmeli: Yapay zekâ, Görsel üretim, Görünüm. | Sağ altta, tıklayınca sıradakine geçen 8 kartlık deste: Yaver nedir, API anahtarı, istek yazma, plan ve üretim, düzenleme, model seçimi, maliyet, API entegrasyonu. Her kartta bir yönlendirme düğmesi; üzerine gelince ekran görüntüleri yelpaze gibi açılır. |
+
+| Görsel incelemeli sunum üretimi | Yaver Agent sohbet paneli |
+|---|---|
+| ![Sunum örneği](docs/screenshots/sunum-ornegi.gif) | ![Yaver Agent](docs/screenshots/yaver-agent-sohbet.gif) |
+| Sunumlar tasarım rehberleriyle üretilir, slaytlar görüntüye çevrilip yapay zekâya gösterilir ve taşan yazı, boş alan, okunmayan renk gibi kusurlar düzeltilir; en az kusurlu sürüm teslim edilir. Gemini anahtarıyla slaytlara görsel üretilir; fontlar konuya göre hazır eşleştirmelerden seçilir. Dosya adları içerikten türetilir. | Editördeki asistan mesaj akışı biçiminde: istek balonları, "N sn'de hazırladı" özeti, HAZIR / UYGULANDI durum çipleri ve açılabilir değişiklik farkı. |
+
+| Animasyonlu tema geçişi |
+|---|
+| ![Tema geçişi](docs/screenshots/tema-gecisi.gif) |
+| Açık/koyu tema düğmeden yayılan bir daire ile değişir; açık temada logo da açık tema sürümüne geçer. |
+
+### Kendi anahtarınızla API çağrısı
+
+Kullanıcıya dönük eşzamanlı uç noktalar (`POST /api/chat`, belge düzenleme, Yaver Agent) istek gövdesinde isteğe bağlı `llm_provider`, `llm_api_key`, `llm_model` alanlarını kabul eder; o istek `.env`'deki varsayılan yerine bu anahtarla çalışır ve anahtar saklanmaz. Arka plan ve zamanlanmış işler her zaman `.env` değerlerini kullanır. Sağlayıcı yalnızca `anthropic`, `gemini` veya `openai` olabilir; istekten adres/uç nokta kabul edilmez.
+
+```bash
+curl -X POST http://localhost:8081/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "<isteğiniz>", "format": "DOCX", "llm_provider": "gemini", "llm_api_key": "<anahtarınız>", "llm_model": "gemini-2.5-pro"}'
+```
+
+> Bu sürümde API kimlik doğrulaması yoktur; sunucuyu yalnızca güvenilir bir iç ağda ya da kimlik doğrulayan bir ters vekil sunucunun arkasında açın.
 
 ## Gereksinimler
 
@@ -92,17 +121,21 @@ docker compose -p office-manipulator-teslim logs -f app   # yalnızca uygulama s
 |---|---|---|
 | `DB_PASSWORD` | PostgreSQL parolası | **Zorunlu** — kendi parolanızı belirleyin |
 | `OFFICE_JWT_SECRET` | ONLYOFFICE ↔ uygulama imzalama anahtarı | **Zorunlu** — `openssl rand -hex 32` ile üretin |
-| `ANTHROPIC_API_KEY` | Claude API anahtarı | Boş bırakın — AI özellikleri kapalı kalır. İleride internet erişimi olan bir ortamda kullanmak isterseniz arayüzün **Ayarlar** bölümünden de girip doğrulayabilirsiniz, `.env`'e yazmak zorunlu değildir |
-| `ANTHROPIC_BASE_URL` | Anthropic API uç noktası | Boş bırakın (resmî adres kullanılır) — yalnızca kendi barındırdığınız bir Claude-uyumlu uç nokta kullanacaksanız doldurun |
+| `LLM_PROVIDER` | Varsayılan yapay zekâ sağlayıcısı: `anthropic`, `gemini` veya `openai` | Varsayılan `anthropic`; arayüzün **Ayarlar** bölümünden de değiştirilebilir |
+| `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY` | Seçilen sağlayıcının API anahtarı (müşterinin kendi anahtarı; sunucu LLM ücreti ödemez) | Boş bırakın — AI özellikleri kapalı kalır. İnternet erişimi olan bir ortamda **Ayarlar** bölümünden de girip doğrulayabilirsiniz, `.env`'e yazmak zorunlu değildir |
+| `ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL` | Sağlayıcıların varsayılan modeli | Boş bırakılabilir; Ayarlar'dan listeden seçilir |
+| `LLM_INPUT_PRICE_PER_MILLION`, `LLM_OUTPUT_PRICE_PER_MILLION` | Varsayılan modelin fiyatı (USD / 1M token), bütçe koruması için | Claude için boş bırakılabilir; Gemini/OpenAI modellerinde güncel fiyat girilmelidir |
+| `ANTHROPIC_BASE_URL` | Anthropic API uç noktası | Ayarlamayın (resmî adres kullanılır) — yalnızca kendi barındırdığınız bir Claude-uyumlu uç nokta kullanacaksanız doldurun |
+| `PRESENTATION_REVIEW_ROUNDS` | Sunumlarda görsel inceleme ve düzeltme turu sayısı | Varsayılan `2`; `0` kapatır (her tur bir inceleme + bir yeniden üretim çağrısı demektir) |
 | `FILE_TTL_HOURS` | Üretilen/yüklenen dosyaların ne kadar süre saklanacağı | Varsayılan `72` (saat); ihtiyaca göre değiştirebilirsiniz |
 | `BUDGET_LIMIT_USD` | AI çağrıları için bütçe tavanı | AI kapalıyken etkisizdir, değiştirmenize gerek yok |
-| `GEMINI_API_KEY`, `GEMINI_ENABLED` | Opsiyonel AI görsel üretimi | Boş/`false` bırakın |
+| `GEMINI_ENABLED`, `GEMINI_IMAGE_MODEL`, `GEMINI_INPUT/OUTPUT_PRICE_PER_MILLION` | Opsiyonel AI görsel üretimi (`GEMINI_API_KEY`'i kullanır; fiyat girilmeden çalışmaz) | `false` bırakın |
 
-Diğer satırlar (`CLAUDE_MODEL`, fiyat alanları vb.) AI kapalıyken etkisizdir; dokunmanıza gerek yoktur.
+AI kapalıyken (anahtar boşken) model ve fiyat satırları etkisizdir; dokunmanıza gerek yoktur.
 
 ## Sınırlamalar
 
-- AI özellikleri (sohbet, AI ile belge/sunum üretimi, Yaver'in önerileri) internet gerektirir ve `ANTHROPIC_API_KEY` boşken kapalıdır — bu beklenen bir durumdur, hata değildir.
+- AI özellikleri (sohbet, AI ile belge/sunum üretimi, Yaver'in önerileri) internet gerektirir ve seçilen sağlayıcının anahtarı boşken kapalıdır — bu beklenen bir durumdur, hata değildir.
 - Dosya yükleme/indirme, önizleme, biçim dönüştürme ve ONLYOFFICE ile belge düzenleme internet olmadan da tam çalışır.
 - Port `8081` veya `8082` başka bir uygulama/konteyner tarafından kullanılıyorsa, `docker-compose.yml` içindeki ilgili `ports:` satırını (örn. `127.0.0.1:8081:8080`) değiştirip `bash baslat.sh`'ı tekrar çalıştırın.
 
