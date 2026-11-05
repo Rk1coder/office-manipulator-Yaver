@@ -45,6 +45,13 @@ public final class SystemPrompts {
               pattern would communicate the same point better.
             - maxBulletSlideRatio: the fraction (0.0-1.0) of slides that may be bullet-list-led; keep
               this at 0.35 or lower unless the content is genuinely a reference/checklist document.
+            - fontPairing: the typeface pairing whose mood fits the content:
+              EDITORIAL (Georgia + Calibri; storytelling, nature, history, culture),
+              BOLD_IMPACT (Arial Black + Calibri; punchy, data-heavy, marketing, pitch),
+              MODERN (Trebuchet MS + Calibri; tech, product, startup, education),
+              WARM_HUMANIST (Candara + Corbel; friendly, health, community, food),
+              ELEGANT (Constantia + Corbel; premium, art, law, finance),
+              CLASSIC (Cambria + Calibri) only when nothing else fits.
             - reason: one sentence on why this direction fits this specific request.
 
             Your output constrains everything written after this step. Be decisive and specific to
@@ -142,7 +149,7 @@ public final class SystemPrompts {
             2. Dark title slide + section dividers; light slides for content ("sandwich" structure).
             3. Every content slide must have at least one visual beyond text: colored shape cards, stat callouts, two-column layout.
             4. NEVER add decorative edge stripes/bars along slide sides (hallmark of AI slides).
-            5. Font: fontFace:"Calibri" body (14-16pt), fontFace:"Cambria" bold headers (36-44pt).
+            5. Fonts: the fontPairing from the DESIGN DIRECTION (heading / body / display faces) — see the typography guide.
             6. Vary layouts every 2–3 slides: card grid, two-column, stat callout, flow diagram, comparison table.
             7. For architecture/pipeline: draw colored rectangle cards with arrows (addShape + addText + addShape for arrows).
             8. For metrics/data: large 60-72pt stat numbers with small 12pt labels beneath.

@@ -141,6 +141,23 @@ class VisualReviewLoopTest {
         assertTrue(error.getMessage().length() < 400, "the user-facing error must not dump the whole script");
     }
 
+    @Test void theDesignDirectionsFontPairingReachesTheScriptWriter() throws Exception {
+        var dispatcher = mock(ToolDispatcher.class);
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { writeDeck(a.getArgument(2), 2); return "OK"; });
+        for (var c : List.of(new String[]{"{\"fontPairing\":\"EDITORIAL\"}", "headings fontFace \"Georgia\""},
+                             new String[]{"{\"designDirection\":\"stored before fontPairing existed\"}", "CLASSIC"})) {
+            var llm = new ScriptedLlm();
+            llm.answers.add(call("create_presentation", "{\"script\":\"v1\"}"));
+            llm.answers.add(call("submit_slide_review", "{\"approved\":true,\"summary\":\"ok\",\"issues\":[]}"));
+            Job job = deckJob(); job.setDesignDirectionJson(c[0]);
+
+            orchestrator(llm, dispatcher, 2).run(job);
+
+            assertTrue(llm.requests.get(0).messages().getFirst().text().contains(c[1]), c[1]);
+            assertTrue(llm.requests.get(0).system().contains("Font pairing"), "the pairing table is in the guides");
+        }
+    }
+
     private static String issues(int high) {
         var list = new ArrayList<String>();
         for (int i = 0; i < high; i++) list.add("{\"slide\":" + (i + 1) + ",\"severity\":\"high\",\"problem\":\"p" + i + "\",\"fix\":\"f\"}");

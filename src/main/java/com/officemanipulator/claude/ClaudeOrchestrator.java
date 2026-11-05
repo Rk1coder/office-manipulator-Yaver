@@ -149,6 +149,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             content.append("heroSlides: ").append(d.path("heroSlides").toString()).append('\n');
             content.append("preferredLayouts: ").append(d.path("preferredLayouts").toString()).append('\n');
             content.append("maxBulletSlideRatio: ").append(d.path("maxBulletSlideRatio").asText("0.35")).append('\n');
+            content.append("fontPairing: ").append(FontPairing.parse(d.path("fontPairing").asText()).describe()).append('\n');
             content.append("reason: ").append(d.path("reason").asText("")).append('\n');
             content.append("\nDo not use the same slide pattern more than twice consecutively. Favor preferredLayouts above generic title+bullets.\n");
         } catch (Exception e) {
