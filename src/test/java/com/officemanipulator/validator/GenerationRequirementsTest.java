@@ -22,4 +22,14 @@ class GenerationRequirementsTest {
   Job job=new Job();job.setFormat(OutputFormat.PPTX);job.setRequest("Tam 4 slaytlık sunum hazırla");
   assertThrows(IllegalArgumentException.class,()->GenerationRequirements.validate(job,file));
  }
+ @Test void generatedImagesMustAllAppearInTheDeck() throws Exception {
+  Path png=temp.resolve("img_1.png");javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(4,4,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",png.toFile());
+  Path file=temp.resolve("images.pptx");
+  Job job=new Job();job.setFormat(OutputFormat.PPTX);job.setRequest("Karınca sunumu");job.setImagePathsJson("{\"1\":\""+png+"\",\"4\":\""+png+"\"}");
+  try(var deck=new XMLSlideShow();var out=Files.newOutputStream(file)){var data=deck.addPicture(Files.readAllBytes(png),org.apache.poi.sl.usermodel.PictureData.PictureType.PNG);deck.createSlide().createPicture(data);deck.createSlide();deck.write(out);}
+  var error=assertThrows(IllegalArgumentException.class,()->GenerationRequirements.validate(job,file));
+  assertTrue(error.getMessage().contains("IMG_1, IMG_4"),error.getMessage());
+  job.setImagePathsJson(null);
+  assertDoesNotThrow(()->GenerationRequirements.validate(job,file));
+ }
 }

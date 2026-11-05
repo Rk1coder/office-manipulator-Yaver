@@ -96,7 +96,7 @@ class VisualReviewLoopTest {
         assertTrue(feedback.text().contains("body text overflows the card"));
         assertFalse(feedback.text().contains("nitpick"), "low-severity polish does not force a rewrite");
         assertTrue(Files.exists(result.outputPath()));
-        assertFalse(Files.exists(result.outputPath().resolveSibling("approved-output.pptx")));
+        assertFalse(Files.exists(result.outputPath().resolveSibling("best-output.pptx")));
         assertEquals(4 * 10, result.inputTokens());
     }
 
@@ -139,5 +139,32 @@ class VisualReviewLoopTest {
         for (int i = 0; i < 2; i++) llm.answers.add(new LlmClient.Response("x".repeat(5000), List.of(), 10, 20));
         var error = assertThrows(IllegalStateException.class, () -> orchestrator(llm, mock(ToolDispatcher.class), 2).run(deckJob()));
         assertTrue(error.getMessage().length() < 400, "the user-facing error must not dump the whole script");
+    }
+
+    private static String issues(int high) {
+        var list = new ArrayList<String>();
+        for (int i = 0; i < high; i++) list.add("{\"slide\":" + (i + 1) + ",\"severity\":\"high\",\"problem\":\"p" + i + "\",\"fix\":\"f\"}");
+        return "{\"approved\":false,\"summary\":\"s\",\"issues\":[" + String.join(",", list) + "]}";
+    }
+
+    @Test void whenRewritesMakeTheDeckWorseTheBestReviewedVersionShips() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(call("create_presentation", "{\"script\":\"v1\"}"));
+        llm.answers.add(call("submit_slide_review", issues(1)));
+        llm.answers.add(call("create_presentation", "{\"script\":\"v2\"}"));
+        llm.answers.add(call("submit_slide_review", issues(2)));
+        llm.answers.add(call("create_presentation", "{\"script\":\"v3\"}"));
+        llm.answers.add(call("submit_slide_review", issues(3)));
+        var dispatcher = mock(ToolDispatcher.class);
+        int[] version = {0};
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { writeDeck(a.getArgument(2), 3 + version[0]++); return "OK"; });
+
+        var result = orchestrator(llm, dispatcher, 2).run(deckJob());
+
+        assertEquals(6, llm.requests.size(), "the last rewrite is reviewed too");
+        try (var deck = new XMLSlideShow(Files.newInputStream(result.outputPath()))) {
+            assertEquals(3, deck.getSlides().size(), "v1 had the fewest defects, so v1 ships");
+        }
+        assertFalse(Files.exists(result.outputPath().resolveSibling("best-output.pptx")));
     }
 }
