@@ -51,6 +51,13 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     /** Render → review → rewrite rounds after a deck first succeeds (0 disables the visual review). */
     @Value("${app.presentation.review-rounds:2}")
     private int reviewRounds;
+    /** Vision model for the slide review when the generator can't see images (e.g. gpt-oss); blank = the generator. */
+    @Value("${app.presentation.review-model:}")
+    private String reviewModel = "";
+    @Value("${app.presentation.review-input-price-per-million:0}")
+    private BigDecimal reviewInputPrice = BigDecimal.ZERO;
+    @Value("${app.presentation.review-output-price-per-million:0}")
+    private BigDecimal reviewOutputPrice = BigDecimal.ZERO;
     private static final int MAX_REVIEW_SLIDES = 24;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.officemanipulator.office.SlideRenderer renderer;
@@ -417,7 +424,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             context.append("\n\nThe ").append(slides.size()).append(" images above are the rendered slides, in order.");
             String system = SystemPrompts.SLIDE_REVIEW + (skills == null ? "" : skills.reviewChecklist());
             Response review = billedRequest(job, new LlmClient.Request(system, List.of(Message.user(context.toString(), slides)),
-                    List.of(toolRegistry.slideReviewTool()), "submit_slide_review", 4000));
+                    List.of(toolRegistry.slideReviewTool()), "submit_slide_review", 4000), true);
             usage[0] += review.inputTokens();
             usage[1] += review.outputTokens();
             ToolCall verdict = review.firstToolCall("submit_slide_review");
@@ -434,15 +441,20 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             log.info("Job {} visual review: approved={}, blocking issues={}, score={}", job.getId(),
                     verdict.input().path("approved").asBoolean(), issues.size(), score);
             if (issues.isEmpty()) return new SlideReview(0, null);
-            return new SlideReview(score, Message.user("""
-                    VISUAL REVIEW — the images above are how your previous script actually renders (image 1 = slide 1).
+            boolean generatorSees = reviewModel.isBlank();
+            String feedback = """
+                    VISUAL REVIEW — %s
                     An art director found these defects:
                     %s
 
                     Call create_presentation again with the COMPLETE corrected script. Fix every listed defect, keep
                     everything that already works (content, order, palette, layouts), and keep the // LAYOUT: comments.
                     Keep every generated image (process.env.IMG_<n>) on its slide. Fix empty areas by enlarging the real
-                    content (type, cards, image, chart) — never by deleting content or images.""".formatted(String.join("\n", issues)), slides));
+                    content (type, cards, image, chart) — never by deleting content or images.""".formatted(generatorSees
+                    ? "the images above are how your previous script actually renders (image 1 = slide 1)."
+                    : "your previous script was rendered and inspected slide by slide.", String.join("\n", issues));
+            // A text-only generator rejects image input, so it gets the defect list alone.
+            return new SlideReview(score, generatorSees ? Message.user(feedback, slides) : Message.user(feedback));
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Üretim iptal edildi", e);
             log.warn("Job {} visual review skipped: {}", job.getId(), e.getMessage());
@@ -526,7 +538,13 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     }
 
     private Response billedRequest(Job job, LlmClient.Request request) {
+        return billedRequest(job, request, false);
+    }
+
+    private Response billedRequest(Job job, LlmClient.Request request, boolean slideReview) {
         LlmSelection selection = provider.selectionFor(job.getId());
+        if (slideReview && !reviewModel.isBlank())
+            selection = new LlmSelection(selection.provider(), selection.apiKey(), reviewModel, selection.requestKey());
         // A caller's own key bills the caller, not this server's budget.
         boolean billable = billing != null && !selection.requestKey();
         // UTF-8 bytes bound text token count; reserve extra space for message/tool framing.
@@ -552,7 +570,8 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
     private BigDecimal computeCost(String activeModel, long inputTokens, long outputTokens) {
         boolean sameAsConfigured = activeModel != null && activeModel.equals(pricingModel);
-        BigDecimal[] known = sameAsConfigured ? null : com.officemanipulator.config.ModelPricing.priceFor(activeModel);
+        BigDecimal[] known = sameAsConfigured ? null : !reviewModel.isBlank() && reviewModel.equals(activeModel)
+                ? new BigDecimal[]{reviewInputPrice, reviewOutputPrice} : com.officemanipulator.config.ModelPricing.priceFor(activeModel);
         BigDecimal inputRate = known != null ? known[0] : inputPricePerMillion;
         BigDecimal outputRate = known != null ? known[1] : outputPricePerMillion;
         BigDecimal input  = inputRate

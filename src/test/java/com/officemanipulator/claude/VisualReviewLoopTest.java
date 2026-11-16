@@ -36,9 +36,10 @@ class VisualReviewLoopTest {
     static class ScriptedLlm implements LlmClient {
         final Deque<Response> answers = new ArrayDeque<>();
         final List<Request> requests = new ArrayList<>();
+        final List<String> models = new ArrayList<>();
         public LlmProvider provider() { return LlmProvider.ANTHROPIC; }
         public void verify(String apiKey, String model) {}
-        public Response chat(LlmSelection selection, Request request) { requests.add(request); return answers.removeFirst(); }
+        public Response chat(LlmSelection selection, Request request) { requests.add(request); models.add(selection.model()); return answers.removeFirst(); }
     }
 
     private LlmClient.Response call(String tool, String json) throws Exception {
@@ -98,6 +99,31 @@ class VisualReviewLoopTest {
         assertTrue(Files.exists(result.outputPath()));
         assertFalse(Files.exists(result.outputPath().resolveSibling("best-output.pptx")));
         assertEquals(4 * 10, result.inputTokens());
+    }
+
+    @Test void aSeparateReviewModelInspectsTheSlidesAndTheGeneratorGetsTextOnly() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(call("create_presentation", "{\"script\":\"v1\"}"));
+        llm.answers.add(new LlmClient.Response(null, List.of(new LlmClient.ToolCall("r", "submit_slide_review", mapper.readTree(
+                "{\"approved\":false,\"summary\":\"s\",\"issues\":[{\"slide\":1,\"severity\":\"high\",\"problem\":\"overflow\",\"fix\":\"shrink\"}]}"), null)), 1_000_000, 0));
+        llm.answers.add(call("create_presentation", "{\"script\":\"v2\"}"));
+        llm.answers.add(call("submit_slide_review", "{\"approved\":true,\"summary\":\"ok\",\"issues\":[]}"));
+        var dispatcher = mock(ToolDispatcher.class);
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { writeDeck(a.getArgument(2), 3); return "OK"; });
+        var ai = orchestrator(llm, dispatcher, 2);
+        ReflectionTestUtils.setField(ai, "reviewModel", "google/gemma-4-31b-it");
+        ReflectionTestUtils.setField(ai, "reviewInputPrice", new BigDecimal("0.20"));
+        Job job = deckJob();
+
+        ai.run(job);
+
+        assertEquals(List.of("test", "google/gemma-4-31b-it", "test", "google/gemma-4-31b-it"), llm.models);
+        assertEquals(2, llm.requests.get(1).messages().getFirst().images().size(), "the review model sees the slides");
+        var feedback = llm.requests.get(2).messages().getLast();
+        assertTrue(feedback.images().isEmpty(), "a text-only generator must not get images");
+        assertTrue(feedback.text().contains("overflow"));
+        // 1M review input tokens at the review model's $0.20, not the generator's $1.
+        assertTrue(job.getCostUsd().compareTo(new BigDecimal("0.5")) < 0, job.getCostUsd().toString());
     }
 
     @Test void aBrokenRewriteFallsBackToTheApprovedDeck() throws Exception {
