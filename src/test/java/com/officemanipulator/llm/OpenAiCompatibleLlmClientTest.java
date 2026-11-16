@@ -100,6 +100,28 @@ class OpenAiCompatibleLlmClientTest {
         assertTrue(retry.at("/messages/0/content").asText().contains("\"radical\""), "schema must be in the prompt");
     }
 
+    @Test void aRejectedForcedToolChoiceIsRetriedAsAuto() throws Exception {
+        var bodies = new java.util.ArrayList<String>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", ex -> {
+            String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            bodies.add(body);
+            if (body.contains("\"tool_choice\":{")) reply(ex, 400, "{\"error\":{\"message\":\"Provider returned error\"}}");
+            else reply(ex, 200, "{\"choices\":[{\"message\":{\"tool_calls\":[{\"id\":\"c\",\"type\":\"function\",\"function\":"
+                    + "{\"name\":\"submit_plan\",\"arguments\":\"{\\\"title\\\":\\\"T\\\"}\"}}]}}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}");
+        });
+        server.start();
+        var client = new OpenAiCompatibleLlmClient("http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
+        var tool = new LlmClient.Tool("submit_plan", "d", HttpJson.JSON.readTree("{\"type\":\"object\"}"), false);
+
+        var response = client.chat(new LlmSelection(LlmProvider.OPENAI_COMPATIBLE, "EMPTY", "m", false),
+                new LlmClient.Request("SYS", List.of(LlmClient.Message.user("hi")), List.of(tool), "submit_plan", 10));
+
+        assertEquals(2, bodies.size());
+        assertEquals("auto", HttpJson.JSON.readTree(bodies.get(1)).path("tool_choice").asText());
+        assertEquals("T", response.firstToolCall("submit_plan").input().path("title").asText());
+    }
+
     @Test void baseUrlComesOnlyFromConfigAndMustBeHttp() {
         for (String bad : new String[]{"file:///etc/passwd", "ftp://host/v1", "vllm:8000/v1"}) {
             assertThrows(IllegalArgumentException.class, () -> new OpenAiCompatibleLlmClient(bad), bad);

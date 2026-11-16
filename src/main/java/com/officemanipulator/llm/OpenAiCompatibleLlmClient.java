@@ -85,7 +85,15 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
         // outright; left out, the server caps output at whatever context remains.
         body.remove("max_completion_tokens");
         if (jsonMode) body.putObject("response_format").put("type", "json_object");
-        return fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
+        try {
+            return fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
+        } catch (IllegalStateException e) {
+            // Some servers reject a forced tool_choice outright (OpenRouter's AtlasCloud route for
+            // qwen3.5-122b: HTTP 400); the system prompt already demands the call, so retry with "auto".
+            if (!body.path("tool_choice").isObject() || e.getMessage() == null || !e.getMessage().contains("(HTTP 400)")) throw e;
+            body.put("tool_choice", "auto");
+            return fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
+        }
     }
 
     /** A model that still put the arguments in plain text (often fenced JSON) gets them treated as the forced call. */
