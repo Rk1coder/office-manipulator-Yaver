@@ -257,7 +257,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         boolean review = reviewable(job) && reviewRounds > 0;
         // One rewrite when source figures went missing; the version before it ships if the rewrite fails.
         boolean coverageChecked = false;
-        int gapsBefore = -1; // figures missing before the coverage rewrite; -1 once it has been judged
+        List<String> gapsBefore = null; // figures missing before the coverage rewrite; null once it has been judged
         Path beforeCoverage = outputPath.resolveSibling("covered-" + outputPath.getFileName());
         // The format fixes the tool; forcing it stops models (notably Gemini) from answering with the
         // script as plain text instead of a tool call.
@@ -313,17 +313,20 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                 List<String> gaps = missingSourceFigures(job, outputPath);
                 if (!gaps.isEmpty()) {
                     java.nio.file.Files.copy(outputPath, beforeCoverage, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    gapsBefore = gaps.size();
+                    gapsBefore = gaps;
                     messages.add(sourceCoverageFeedback(job, gaps));
                     continue;
                 }
-            } else if (gapsBefore >= 0) {
+            } else if (gapsBefore != null) {
                 // A small model may answer the feedback with garbage (seen: the feedback text written as the CSV).
-                if (missingSourceFigures(job, outputPath).size() >= gapsBefore) {
+                // Kept only if it fixes something and loses nothing the first version had (seen: a rewrite that
+                // added the missing sales figures but dropped the rent and invented regions).
+                List<String> gapsAfter = missingSourceFigures(job, outputPath);
+                if (gapsAfter.size() >= gapsBefore.size() || !gapsBefore.containsAll(gapsAfter)) {
                     log.info("Job {}: source-coverage rewrite did not help, keeping the version before it", job.getId());
                     java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 }
-                gapsBefore = -1;
+                gapsBefore = null;
             }
             if (!review) break;
             long[] reviewUsage = new long[2];
@@ -344,7 +347,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         }
 
         if (!succeeded) throw new IllegalStateException("All generation attempts failed: " + lastError);
-        if (lastFailed && gapsBefore >= 0 && !java.nio.file.Files.exists(best)) {
+        if (lastFailed && gapsBefore != null && !java.nio.file.Files.exists(best)) {
             log.info("Job {} ships its version before the failed source-coverage rewrite", job.getId());
             java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
