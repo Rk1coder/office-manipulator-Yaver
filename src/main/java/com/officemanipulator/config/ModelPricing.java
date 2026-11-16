@@ -25,13 +25,18 @@ public class ModelPricing {
                         @Value("${app.llm.anthropic.model:}") String anthropicModel,
                         @Value("${app.llm.gemini.model:}") String geminiModel,
                         @Value("${app.llm.openai.model:}") String openaiModel,
+                        @Value("${app.llm.openai-compatible.model:}") String compatibleModel,
                         @Value("${app.llm.input-price-per-million:}") String inputOverride,
                         @Value("${app.llm.output-price-per-million:}") String outputOverride) {
         this(switch (LlmProvider.parse(provider)) {
             case ANTHROPIC -> anthropicModel;
             case GEMINI -> geminiModel;
             case OPENAI -> openaiModel;
-        }, inputOverride, outputOverride);
+            case OPENAI_COMPATIBLE -> compatibleModel;
+        },
+                // Self-hosted (vLLM, Ollama) costs nothing per token; hosted compatible APIs set real prices.
+                inputOverride.isBlank() && LlmProvider.parse(provider) == LlmProvider.OPENAI_COMPATIBLE ? "0" : inputOverride,
+                outputOverride.isBlank() && LlmProvider.parse(provider) == LlmProvider.OPENAI_COMPATIBLE ? "0" : outputOverride);
     }
 
     public ModelPricing(String model, String inputOverride, String outputOverride) {
@@ -41,8 +46,8 @@ public class ModelPricing {
             throw new IllegalArgumentException("Configure input and output prices for model " + model);
         input = new BigDecimal(inputOverride.isBlank() ? prices[0] : inputOverride);
         output = new BigDecimal(outputOverride.isBlank() ? prices[1] : outputOverride);
-        if (input.signum() <= 0 || output.signum() <= 0)
-            throw new IllegalArgumentException("Model prices must be positive");
+        if (input.signum() < 0 || output.signum() < 0)
+            throw new IllegalArgumentException("Model prices must not be negative");
     }
     public String model() { return model; }
     public BigDecimal input() { return input; }

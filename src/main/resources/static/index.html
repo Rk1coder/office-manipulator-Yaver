@@ -1770,7 +1770,7 @@ class Component extends DCLogic {
       create: "curl -X POST " + host + "/api/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\", \"format\": \"DOCX\"}'\n\n→ {\"jobId\": \"…\", \"status\": \"PENDING\", \"format\": \"DOCX\"}",
       watch: "curl " + host + "/api/jobs/$JOB_ID\ncurl -N " + host + "/api/jobs/$JOB_ID/events",
       download: "curl -OJ " + host + "/api/files/$JOB_ID/download",
-      key: "{\n  \"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\",\n  \"llm_provider\": \"anthropic | gemini | openai\",\n  \"llm_api_key\": \"<" + (tr ? 'anahtarın' : 'your key') + ">\",\n  \"llm_model\": \"<" + (tr ? 'model adı' : 'model name') + ">\"\n}"
+      key: "{\n  \"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\",\n  \"llm_provider\": \"anthropic | gemini | openai | openai_compatible\",\n  \"llm_api_key\": \"<" + (tr ? 'anahtarın' : 'your key') + ">\",\n  \"llm_model\": \"<" + (tr ? 'model adı' : 'model name') + ">\"\n}"
     };
     return tr ? [
       { id: 'what', eyebrow: 'TANIŞMA', title: 'Yaver nedir?', go: 'Başlamak için önce bir yapay zekâ anahtarı ekle', action: 'settings',
@@ -1831,7 +1831,7 @@ class Component extends DCLogic {
           { h: '1. İş oluştur', p: 'İsteği gönder; yanıtta işin kimliği (jobId) döner. format alanı boş bırakılırsa tür otomatik seçilir.', code: curl.create },
           { h: '2. Durumu izle', p: 'Tek seferlik sorgu için ilk komutu, canlı akış (Server-Sent Events) için ikinci komutu kullan.', code: curl.watch },
           { h: '3. Dosyayı indir', p: 'İş tamamlandığında dosyayı indir.', code: curl.download },
-          { h: 'Kendi anahtarınla çağırmak', p: 'İstek gövdesine llm_* alanlarını eklersen o istek sunucunun varsayılan anahtarı yerine verdiğin anahtarla çalışır. Anahtar saklanmaz. Sağlayıcı yalnızca anthropic, gemini veya openai olabilir.', code: curl.key },
+          { h: 'Kendi anahtarınla çağırmak', p: 'İstek gövdesine llm_* alanlarını eklersen o istek sunucunun varsayılan anahtarı yerine verdiğin anahtarla çalışır. Anahtar saklanmaz. Sağlayıcı yalnızca anthropic, gemini, openai veya openai_compatible (sunucuda tanımlı vLLM/Ollama vb.) olabilir.', code: curl.key },
           { h: 'Güvenlik notu', p: 'Bu sürümde API kimlik doğrulaması yoktur. Sunucuyu yalnızca güvenilir bir iç ağda ya da kimlik doğrulayan bir ters vekil sunucunun arkasında açın.' }
         ] }
     ] : [
@@ -1893,7 +1893,7 @@ class Component extends DCLogic {
           { h: '1. Create a job', p: 'Send the request; the response carries the job id. Leave format empty to have the type chosen automatically.', code: curl.create },
           { h: '2. Track status', p: 'Use the first command for a one-off check, the second for a live stream (Server-Sent Events).', code: curl.watch },
           { h: '3. Download the file', p: 'Download the file when the job is done.', code: curl.download },
-          { h: 'Calling with your own key', p: 'Add the llm_* fields to the request body to run that request with the key you send instead of the server default. The key is not stored. The provider must be anthropic, gemini or openai.', code: curl.key },
+          { h: 'Calling with your own key', p: 'Add the llm_* fields to the request body to run that request with the key you send instead of the server default. The key is not stored. The provider must be anthropic, gemini, openai or openai_compatible (vLLM/Ollama etc. configured on the server).', code: curl.key },
           { h: 'Security note', p: 'This version has no API authentication. Expose the server only on a trusted internal network or behind a reverse proxy that authenticates.' }
         ] }
     ];
@@ -1966,7 +1966,10 @@ class Component extends DCLogic {
           : ['Go to aistudio.google.com and sign in with your Google account.', 'Open "Get API key".', 'Click "Create API key".', 'Paste the key above, type the model name, and click Check.'] },
       openai: { name: 'OpenAI', short: 'OpenAI', keyHint: 'sk-…', url: 'https://platform.openai.com/api-keys', console: 'OpenAI Platform',
         steps: tr ? ['platform.openai.com adresine gidin ve giriş yapın / hesap oluşturun.', '"API keys" sayfasını açın.', '"Create new secret key" ile yeni bir anahtar oluşturun.', 'Anahtarı yukarıdaki kutuya yapıştırın, model adını yazın ve Kontrol et düğmesine basın.']
-          : ['Go to platform.openai.com and sign in / create an account.', 'Open the "API keys" page.', 'Click "Create new secret key".', 'Paste the key above, type the model name, and click Check.'] }
+          : ['Go to platform.openai.com and sign in / create an account.', 'Open the "API keys" page.', 'Click "Create new secret key".', 'Paste the key above, type the model name, and click Check.'] },
+      openai_compatible: { name: tr ? 'OpenAI-uyumlu (vLLM, Ollama…)' : 'OpenAI-compatible (vLLM, Ollama…)', short: tr ? 'OpenAI-uyumlu sunucu' : 'OpenAI-compatible server', keyHint: 'EMPTY', url: 'https://docs.vllm.ai/en/latest/features/tool_calling.html', console: 'vLLM docs',
+        steps: tr ? ['Sunucu adresini .env dosyasında OPENAI_COMPATIBLE_BASE_URL olarak tanımlayın (örn. http://vllm:8000/v1).', 'vLLM\'i araç çağırma açık başlatın: --enable-auto-tool-choice --tool-call-parser …', 'Sunucu kimlik doğrulaması istemiyorsa anahtar olarak EMPTY yazın.', 'Model adını sunucunun /v1/models listesindeki gibi yazın (örn. Qwen/Qwen2.5-72B-Instruct) ve Kontrol et düğmesine basın.']
+          : ['Set the server address as OPENAI_COMPATIBLE_BASE_URL in .env (e.g. http://vllm:8000/v1).', 'Start vLLM with tool calling on: --enable-auto-tool-choice --tool-call-parser …', 'If the server has no auth, type EMPTY as the key.', 'Type the model id as listed by the server\'s /v1/models (e.g. Qwen/Qwen2.5-72B-Instruct) and click Check.'] }
     };
     return meta[id] || meta.anthropic;
   }
@@ -2870,10 +2873,10 @@ class Component extends DCLogic {
       settingsProviderLabel: L === 'tr' ? 'Sağlayıcı' : 'Provider',
       settingsProviderInput: s.settingsProviderInput,
       onSettingsProvider: e => this.selectSettingsProvider(e.target.value),
-      settingsProviderOptions: (s.settingsData && s.settingsData.providerModels ? Object.keys(s.settingsData.providerModels) : ['anthropic', 'gemini', 'openai'])
+      settingsProviderOptions: (s.settingsData && s.settingsData.providerModels ? Object.keys(s.settingsData.providerModels) : ['anthropic', 'gemini', 'openai', 'openai_compatible'])
         .map(id => ({ value: id, label: this.providerMeta(id).name + (id === 'anthropic' ? (L === 'tr' ? ' · önerilen' : ' · recommended') : '') })),
       settingsKeyLabel: this.providerMeta(s.settingsProviderInput).short + ' API key',
-      settingsModelPlaceholder: ({ anthropic: 'claude-…', gemini: 'gemini-…', openai: 'gpt-…' })[s.settingsProviderInput] || '',
+      settingsModelPlaceholder: ({ anthropic: 'claude-…', gemini: 'gemini-…', openai: 'gpt-…', openai_compatible: 'Qwen/Qwen2.5-72B-Instruct' })[s.settingsProviderInput] || '',
       settingsModelHint: L === 'tr' ? 'Model adını sağlayıcının belgelerindeki gibi yazın; Kontrol et, anahtarın bu modele erişimini doğrular.'
         : 'Type the model id as listed by the provider; Check verifies the key can access it.',
       settingsVerifyLabel: s.settingsVerifying ? (L === 'tr' ? 'Kontrol ediliyor…' : 'Checking…') : (L === 'tr' ? 'Kontrol et' : 'Check'),

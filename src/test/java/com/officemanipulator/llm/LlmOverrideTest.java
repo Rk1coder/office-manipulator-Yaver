@@ -23,7 +23,7 @@ class LlmOverrideTest {
         doAnswer(a -> { stored.putAll(a.getArgument(0)); return null; }).when(settings).setAll(anyMap());
         List<LlmClient> adapters = List.of(new AnthropicLlmClient("", mock(ClaudeKeyVerifier.class)), new OpenAiLlmClient(), new GeminiLlmClient());
         return new LlmClientProvider(settings, new ModelPricing("claude-sonnet-4-6", "", ""), adapters,
-                "anthropic", "env-key", "claude-sonnet-4-6", "", "", openaiKey, "gpt-test");
+                "anthropic", "env-key", "claude-sonnet-4-6", "", "", openaiKey, "gpt-test", "", "");
     }
 
     @Test void providerWhitelistRejectsUnknownNamesAndUrls() {
@@ -66,6 +66,14 @@ class LlmOverrideTest {
         assertThrows(IllegalArgumentException.class, () -> provider.resolveOverride("gemini", "k", "../../evil"));
         assertThrows(IllegalArgumentException.class, () -> provider.resolveOverride("gemini", "k", "m/x?y=1"));
         assertThrows(IllegalArgumentException.class, () -> provider.resolveOverride("gemini", "k\r\nX-Evil: 1", "m"));
+        // A slash passes here for Hugging Face ids, but the Gemini adapter (model in URL path) still refuses it.
+        assertThrows(IllegalArgumentException.class, () -> HttpJson.requireSafeModel("m/x"));
+    }
+
+    @Test void openAiCompatibleOverrideAcceptsHuggingFaceModelIds() {
+        var selection = provider("").resolveOverride("openai_compatible", "EMPTY", "Qwen/Qwen2.5-72B-Instruct");
+        assertEquals(LlmProvider.OPENAI_COMPATIBLE, selection.provider());
+        assertEquals("Qwen/Qwen2.5-72B-Instruct", selection.model());
     }
 
     @Test void syncOverrideIsScopedToTheCallAndJobBindingsToTheirJob() {

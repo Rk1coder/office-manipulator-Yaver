@@ -10,7 +10,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langgraph.errors import GraphRecursionError
 
-from app.config import LLM_API_KEYS, LLM_MODELS, LLM_PROVIDER
+from app.config import LLM_API_KEYS, LLM_MODELS, LLM_PROVIDER, OPENAI_COMPATIBLE_BASE_URL
 from app.prompts import WORD_DOCUMENT_RULES
 from app.tools import make_create_word_document_tool
 
@@ -26,12 +26,20 @@ from app.tools import make_create_word_document_tool
 EXCLUDED_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "delete", "glob", "grep", "execute", "task"})
 
 # Closed whitelist: provider id -> (deepagents profile key, model factory). Endpoints are each
-# library's fixed default; a request can never supply a URL. Adding a provider = a new entry here.
+# library's fixed default, or OPENAI_COMPATIBLE_BASE_URL from env; a request can never supply a
+# URL. Adding a provider = a new entry here.
 MODEL_FACTORIES = {
     "anthropic": ("anthropic", lambda model, key: ChatAnthropic(model=model, api_key=key)),
     "gemini": ("google_genai", lambda model, key: ChatGoogleGenerativeAI(model=model, google_api_key=key)),
     "openai": ("openai", lambda model, key: ChatOpenAI(model=model, api_key=key)),
+    "openai_compatible": ("openai", lambda model, key: _compatible_model(model, key)),
 }
+
+
+def _compatible_model(model: str, key: str):
+    if not OPENAI_COMPATIBLE_BASE_URL:
+        raise ValueError("OPENAI_COMPATIBLE_BASE_URL is not set")
+    return ChatOpenAI(model=model, api_key=key, base_url=OPENAI_COMPATIBLE_BASE_URL)
 for _profile_key, _ in MODEL_FACTORIES.values():
     register_harness_profile(_profile_key, HarnessProfile(excluded_tools=EXCLUDED_TOOLS))
 
