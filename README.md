@@ -129,6 +129,8 @@ docker compose -p office-manipulator-teslim logs -f app   # yalnızca uygulama s
 | `ANTHROPIC_BASE_URL` | Anthropic API uç noktası | Ayarlamayın (resmî adres kullanılır) — yalnızca kendi barındırdığınız bir Claude-uyumlu uç nokta kullanacaksanız doldurun |
 | `MAX_SOURCE_CHARS` | Çok belgeli isteklerde kaynak metnin toplam üst sınırı (karakter; ~4 karakter = 1 token) | Varsayılan `400000`. Aşılırsa istek reddedilir, metin kesilmez. Kendi sunucunuzdaki modelin bağlamından küçük tutun (örn. 32k token'lık vLLM için `80000`) |
 | `PRESENTATION_REVIEW_ROUNDS` | Sunumlarda görsel inceleme ve düzeltme turu sayısı | Varsayılan `2`; `0` kapatır (her tur bir inceleme + bir yeniden üretim çağrısı demektir) |
+| `PRESENTATION_REVIEW_MODEL` | Slayt incelemesini yapan ayrı görsel model (aynı sağlayıcı ve anahtar) | Boş = üretici model inceler. Görsel okuyamayan üreticiyle (örn. `openai/gpt-oss-120b`) bir görsel model verin, örn. `google/gemma-4-31b-it`; üretici düzeltmeleri yalnızca metin olarak alır |
+| `PRESENTATION_REVIEW_INPUT_PRICE_PER_MILLION` / `..._OUTPUT_...` | İnceleme modelinin 1M token fiyatı (USD) | Barındırılan servislerde girin, yoksa harcama bütçeye yansımaz; yerel modelde `0` |
 | `FILE_TTL_HOURS` | Üretilen/yüklenen dosyaların ne kadar süre saklanacağı | Varsayılan `72` (saat); ihtiyaca göre değiştirebilirsiniz |
 | `BUDGET_LIMIT_USD` | AI çağrıları için bütçe tavanı | AI kapalıyken etkisizdir, değiştirmenize gerek yok |
 | `GEMINI_ENABLED`, `GEMINI_IMAGE_MODEL`, `GEMINI_INPUT/OUTPUT_PRICE_PER_MILLION` | Opsiyonel AI görsel üretimi (`GEMINI_API_KEY`'i kullanır; fiyat girilmeden çalışmaz) | `false` bırakın |

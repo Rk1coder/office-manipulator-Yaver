@@ -74,6 +74,10 @@ app:
   presentation:
     # Render → visual review → rewrite rounds after a deck first validates (needs ONLYOFFICE; 0 = off).
     review-rounds: ${PRESENTATION_REVIEW_ROUNDS:2}
+    # Vision model for that review on the same provider/key, for a text-only generator (blank = the generator).
+    review-model: ${PRESENTATION_REVIEW_MODEL:}
+    review-input-price-per-million: ${PRESENTATION_REVIEW_INPUT_PRICE_PER_MILLION:0}
+    review-output-price-per-million: ${PRESENTATION_REVIEW_OUTPUT_PRICE_PER_MILLION:0}
   claude:
     max-tokens: 32000
     max-tool-turns: 4
