@@ -374,6 +374,11 @@ public class DocumentEditService {
         eventPublisher.publishEvent(new JobStatusEvent(this, job.getId(), status));
     }
 
+    /** The document's full content as text (headings, paragraphs, tables, slides, notes) for use as a source. */
+    public String sourceText(Job job) throws java.io.IOException {
+        return formatForEdit(previewService.extract(job), job.getFormat());
+    }
+
     @SuppressWarnings("unchecked")
     private String formatForEdit(PreviewData data, OutputFormat format) {
         if (data == null) throw new IllegalStateException("Document content is unavailable");

@@ -72,9 +72,15 @@ public class ChatController {
         }
     }
 
+    /** Several files (repeat the "file" part) together are the sources of one new document. */
+    static final int MAX_SOURCE_FILES = 10;
+    /** Combined source text cap (~100k tokens); larger sources are refused, never truncated (truncation loses information). */
+    static final int MAX_COMBINED_SOURCE_CHARS = 400_000;
+
+    /** One file: edit or convert it. Several files: one new document is generated from all of them. */
     @PostMapping(value = "/with-file", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> chatWithFile(
-            @RequestParam("file") MultipartFile file,
+            @RequestParam("file") java.util.List<MultipartFile> files,
             @RequestParam("message") String message,
             @RequestParam(value = "format", required = false) String formatParam,
             @RequestParam(value = "llm_provider", required = false) String llmProvider,
@@ -94,14 +100,37 @@ public class ChatController {
         if (message == null || message.isBlank() || message.length() > 10_000) {
             return ResponseEntity.badRequest().body(ErrorResponse.of("message is required (max 10,000 characters)"));
         }
-        if (file.isEmpty() || file.getSize() > com.officemanipulator.office.OfficeDocumentClient.MAX_BYTES) {
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.of("Belge boş olamaz ve en fazla 100 MB olabilir"));
+        if (files.isEmpty() || files.size() > MAX_SOURCE_FILES) {
+            return ResponseEntity.badRequest().body(ErrorResponse.of("1 ile " + MAX_SOURCE_FILES + " arasında belge gönderin"));
+        }
+        for (MultipartFile file : files) {
+            if (file.isEmpty() || file.getSize() > com.officemanipulator.office.OfficeDocumentClient.MAX_BYTES) {
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.of("Belge boş olamaz ve en fazla 100 MB olabilir"));
+            }
         }
         OutputFormat targetFormat = parseFormat(formatParam);
         if (targetFormat == null && formatParam != null && !formatParam.isBlank() && !"AUTO".equalsIgnoreCase(formatParam)) {
             return ResponseEntity.badRequest().body(ErrorResponse.of("Invalid format: " + formatParam));
         }
         try {
+            if (files.size() > 1) {
+                StringBuilder sources = new StringBuilder();
+                for (int i = 0; i < files.size(); i++) {
+                    Job source = jobService.importSourceDocument(files.get(i).getOriginalFilename(), files.get(i).getBytes());
+                    sources.append("=== BELGE ").append(i + 1).append(": ").append(source.getFileName()).append(" ===\n")
+                            .append(documentEditService.sourceText(source)).append("\n");
+                }
+                if (sources.length() > MAX_COMBINED_SOURCE_CHARS) {
+                    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.of(
+                            "Belgelerin toplam metni çok uzun (" + sources.length() + " karakter, en fazla " + MAX_COMBINED_SOURCE_CHARS
+                                    + "). Bilgi kaybı olmaması için kesilmedi; daha az belgeyle deneyin."));
+                }
+                Job job = jobService.createJob(message, sources.toString(), targetFormat);
+                llm.bindJob(job.getId(), override);
+                planningService.createPlanAsync(job.getId());
+                return ResponseEntity.accepted().body(JobCreatedResponse.from(job));
+            }
+            MultipartFile file = files.get(0);
             Job sourceJob = jobService.importSourceDocument(file.getOriginalFilename(), file.getBytes());
             Job editJob = documentEditService.createEditJob(sourceJob.getId(), message, null, targetFormat);
             llm.bindJob(editJob.getId(), override);

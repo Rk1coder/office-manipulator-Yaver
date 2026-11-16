@@ -557,7 +557,7 @@ body{margin:0}
         </sc-if>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px 12px 14px">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <input ref="{{ chatFileRef }}" type="file" sc-camel-on-change="{{ onFileSelected }}" style="display:none" accept=".docx,.pptx,.xlsx,.csv,.pdf,.odt,.ods,.odp,.doc,.txt">
+            <input ref="{{ chatFileRef }}" type="file" multiple sc-camel-on-change="{{ onFileSelected }}" style="display:none" accept=".docx,.pptx,.xlsx,.csv,.pdf,.odt,.ods,.odp,.doc,.txt">
             <button sc-camel-on-click="{{ attachFile }}" style="border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;cursor:pointer" style-hover="border-color:var(--ln2)">{{ attachLabel }}</button>
             <button sc-camel-on-click="{{ toggleSource }}" style="border:1px solid var(--ln);background:{{ sourceBtnBg }};color:var(--tx);border-radius:7px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;cursor:pointer" style-hover="border-color:var(--ln2)">{{ sourceBtnLabel }}</button>
             <div style="display:flex;border:1px solid var(--ln);border-radius:7px;overflow:hidden">
@@ -2219,25 +2219,26 @@ class Component extends DCLogic {
     });
   }
   onChatFileSelected(e) {
-    const file = e.target.files && e.target.files[0];
-    if (file) this.setState({ attachedFile: file, attachedFileName: file.name });
+    // Several files: one new document is generated from all of them (POST /api/chat/with-file, repeated "file").
+    const files = Array.from((e.target.files) || []);
+    if (files.length) this.setState({ attachedFile: files, attachedFileName: files.map(f => f.name).join(', ') });
     e.target.value = '';
   }
   removeAttachedFile() { this.setState({ attachedFile: null, attachedFileName: '' }); }
   runWithFile() {
     const s = this.state, request = s.msg;
     if (!request.trim() || !s.attachedFile || this.spent() >= this.budgetLimit()) return;
-    const file = s.attachedFile;
+    const files = s.attachedFile, names = s.attachedFileName;
     this.clear();
     const epoch = this.epoch, t0 = Date.now();
     const at = () => '+' + ((Date.now() - t0) / 1000).toFixed(1) + 's';
     const fmt = s.format === 'AUTO' ? null : s.format;
     this.setState({ converting: false, cancelling: false, realView: false, realPages: 0, realPage: 0, previewData: null, previewJobId: null, previewLoading: false, planData: null, vSheet: 0, wysiwyg: { active: false, dirty: false, data: null, saving: false }, now: t0, showLogs: false, navOpen: false, viewer: false, vSlide: 0, edits: {}, chat: [], sel: [], agentBusy: false, versions: [], attachedFile: null, attachedFileName: '',
       job: { id: null, format: fmt || 'AUTO', reason: this.L() === 'tr' ? 'Yüklenen belgeden' : 'From uploaded file', request, origin: 'file', srcText: '',
-        status: 'PENDING', times: { PENDING: '+0.0s' }, logs: [{ t: at(), text: (this.L() === 'tr' ? 'Yükleniyor: ' : 'Uploading: ') + file.name }], t0, live: true } });
+        status: 'PENDING', times: { PENDING: '+0.0s' }, logs: [{ t: at(), text: (this.L() === 'tr' ? 'Yükleniyor: ' : 'Uploading: ') + names }], t0, live: true } });
     this.tick = setInterval(() => this.setState({ now: Date.now() }), 120);
     const body = new FormData();
-    body.append('file', file);
+    files.forEach(f => body.append('file', f));
     body.append('message', request);
     if (fmt) body.append('format', fmt);
     fetch('/api/chat/with-file', { method: 'POST', body }).then(r => {

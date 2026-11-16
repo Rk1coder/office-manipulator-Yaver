@@ -70,6 +70,8 @@ public final class SystemPrompts {
             - Language: match the user's request language exactly (Turkish request → Turkish output).
             - Never invent dates, authors, measurement protocols, causal explanations for expenses, or survey findings. When the source does not establish a cause, explicitly say it is unknown. Proposed future criteria must be labelled as proposals.
             - Source fidelity: base all content on provided source material. Do not omit key facts. Never invent references, causes or observations. Label proposals as proposals. Use supplied COMPUTED SOURCE TABLE SUMS.
+              Several sources ("=== BELGE n: name ===") are ONE body of material: merge overlapping topics, keep every figure, table row,
+              name and date from each, and where two sources disagree show both with their source names instead of choosing one.
             - Depth: provide substantive analysis within the user’s requested length. Word, page and slide budgets take precedence over adding extra sections. Remove repeated findings and redundant caveats; never add padding.
             - If an APPROVED PLAN is provided and an outline entry has a non-empty "content" field, that text is
               already the finished, final content for that section/slide — written with full attention, exactly
@@ -371,6 +373,8 @@ public final class SystemPrompts {
             - Planı submit_plan aracıyla gönder. Şemadaki bütün alanları doldur; content her zaman string olmalı.
             - Dil: kullanıcının isteğiyle aynı dilde planla (Türkçe istek → Türkçe başlık/özetler/içerik).
             - Kaynak metin verildiyse, plan onun kapsadığı konuları yansıtmalı.
+            - Birden çok belge ("=== BELGE n: ad ===") verildiyse hepsinin konularını tek yapıda birleştir; hiçbir belgenin
+              rakam, tablo ve tarihlerini dışarıda bırakma. Çelişen bilgileri belge adlarıyla birlikte ikisini de planla.
             - COMPUTED SOURCE TABLE SUMS varsa toplamları aynen kullan. Bütçe, harcama ve kalan tutarı ayır.
             - Kaynakta olmayan neden, anket, kişi adı, tarih veya kaynakça uydurma. Önerileri ve varsayımları açıkça etiketle.
             - Kullanıcının kelime/slayt sayısına uy. Kelime bütçesi tablolar ve başlıklar DAHİL toplam content içindir. Örneğin 650–850 kelime isteğinde hedef yaklaşık 750 kelimedir, 850 üst sınırdır. Aynı bulguyu farklı başlıklarla tekrarlayarak metni uzatma.
