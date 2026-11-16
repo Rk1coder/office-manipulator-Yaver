@@ -25,5 +25,8 @@ public interface AgentOrchestrator {
 
     OrchestratorDocumentEditResult runDocumentEdit(Job job, String currentText, String instruction);
 
+    /** Template-preserving edit: {@code slots} lists "[id] text" lines; returns submit_template_edit's JSON. */
+    OrchestratorDocumentEditResult runTemplateEdit(Job job, String slots);
+
     OrchestratorPlanResult runPlan(Job job);
 }

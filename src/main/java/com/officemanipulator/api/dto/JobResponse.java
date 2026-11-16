@@ -22,7 +22,8 @@ public record JobResponse(
         int tokenInput,
         int tokenOutput,
         OffsetDateTime createdAt,
-        OffsetDateTime expiresAt
+        OffsetDateTime expiresAt,
+        String editMode
 ) {
     public static JobResponse from(Job job) {
         String downloadUrl = (job.getFilePath() != null && job.getStatus() == JobStatus.DONE)
@@ -44,7 +45,8 @@ public record JobResponse(
                 job.getTokenInput() != null ? job.getTokenInput() : 0,
                 job.getTokenOutput() != null ? job.getTokenOutput() : 0,
                 job.getCreatedAt(),
-                job.getExpiresAt()
+                job.getExpiresAt(),
+                job.getEditMode()
         );
     }
 }

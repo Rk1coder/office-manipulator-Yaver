@@ -246,12 +246,19 @@ public class DocumentEditService {
                 editJob.setCostUsd(BigDecimal.ZERO);
             } else {
                 PreviewData content = previewService.extract(originalJob);
-                String documentContext = formatForEdit(content, originalJob.getFormat());
-                var before = JobUsage.snapshot(editJob);
-                OrchestratorResult result = orchestrator.runEdit(editJob, documentContext);
-                before.apply(editJob, result.inputTokens(), result.outputTokens(), result.cost());
-                outputPath = result.outputPath();
-                com.officemanipulator.office.DocumentConversionService.applyIfNeeded(conversionService, editJob, outputPath);
+                outputPath = tryTemplateEdit(editJob, originalJob, content);
+                if (outputPath != null) {
+                    editJob.setEditMode("TEMPLATE");
+                } else {
+                    // Radical (structural) edit: the original stays untouched and a new document is generated.
+                    String documentContext = formatForEdit(content, originalJob.getFormat());
+                    var before = JobUsage.snapshot(editJob);
+                    OrchestratorResult result = orchestrator.runEdit(editJob, documentContext);
+                    before.apply(editJob, result.inputTokens(), result.outputTokens(), result.cost());
+                    outputPath = result.outputPath();
+                    com.officemanipulator.office.DocumentConversionService.applyIfNeeded(conversionService, editJob, outputPath);
+                    editJob.setEditMode("NEW_DOCUMENT");
+                }
             }
 
             if (jobRepository.transition(editJob.getId(), JobStatus.PROCESSING, JobStatus.VALIDATING) != 1) {
@@ -291,6 +298,52 @@ public class DocumentEditService {
         } finally {
             cancellationRegistry.unregister(editJob.getId());
             if (llm != null) llm.releaseJob(editJob.getId());
+        }
+    }
+
+    /**
+     * Asks the model for changed text slots only and writes them into a copy of the original file
+     * (template, styles, images kept). Null when the model calls the edit radical, the target format
+     * differs, or the change can't be written without losing formatting — the caller then generates
+     * a new document instead.
+     */
+    @SuppressWarnings("unchecked")
+    private Path tryTemplateEdit(Job editJob, Job originalJob, PreviewData content) throws java.io.IOException {
+        if (content == null || editJob.getFormat() != originalJob.getFormat()) return null;
+        Map<String, Object> preview = objectMapper.convertValue(content, Map.class);
+        Map<String, String> slots = TemplateEdit.slots(preview);
+        if (slots.isEmpty()) return null;
+        StringBuilder listing = new StringBuilder();
+        slots.forEach((id, text) -> listing.append('[').append(id).append("] ").append(text).append('\n'));
+
+        var before = JobUsage.snapshot(editJob);
+        com.fasterxml.jackson.databind.JsonNode edit;
+        try {
+            var result = orchestrator.runTemplateEdit(editJob, listing.toString());
+            before.apply(editJob, result.inputTokens(), result.outputTokens(), result.cost());
+            edit = objectMapper.readTree(result.editJson());
+        } catch (UnsupportedOperationException e) {
+            return null;
+        } catch (IllegalStateException e) {
+            // The model skipped submit_template_edit (common with small self-hosted models): fall back, don't fail.
+            log.info("Edit job {} got no template edit ({}); generating a new document", editJob.getId(), e.getMessage());
+            return null;
+        }
+        Map<String, String> changes = new java.util.LinkedHashMap<>();
+        edit.path("changes").forEach(c -> changes.put(c.path("id").asText(), c.path("text").asText()));
+        if (edit.path("radical").asBoolean(false) || changes.isEmpty()) {
+            log.info("Edit job {} needs a new document: {}", editJob.getId(), edit.path("reason").asText());
+            return null;
+        }
+        Path outputPath = storageService.resolveOutputPath(editJob.getId(), editJob.getFormat());
+        try {
+            directPatchService.applyPatch(Path.of(originalJob.getFilePath()), outputPath, content.type(), TemplateEdit.apply(preview, changes));
+            return outputPath;
+        } catch (IllegalArgumentException e) {
+            // Unknown slot or text the original's runs can't take without losing formatting.
+            log.info("Edit job {} can't keep the template ({}); generating a new document", editJob.getId(), e.getMessage());
+            java.nio.file.Files.deleteIfExists(outputPath);
+            return null;
         }
     }
 

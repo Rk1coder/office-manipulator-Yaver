@@ -156,9 +156,54 @@ class AuditRegressionTest {
   try(var wb=new org.apache.poi.xssf.usermodel.XSSFWorkbook()){wb.createSheet().createRow(0).createCell(0).setCellValue("WORKBOOK_SENTINEL");try(var os=Files.newOutputStream(in)){wb.write(os);}}
   Job original=fileJob(in,OutputFormat.XLSX);Job edit=fileJob(tmp.resolve("edit.xlsx"),OutputFormat.XLSX);JobRepository r=repo(original);when(r.findById(edit.getId())).thenReturn(Optional.of(edit));
   ClaudeOrchestrator o=mock(ClaudeOrchestrator.class);var contexts=new ArrayList<String>();
+  // Template slots see the cells too; the model calls this edit radical, so the full-content regeneration runs.
+  when(o.runTemplateEdit(eq(edit),anyString())).thenAnswer(a->{contexts.add(a.getArgument(1));return new OrchestratorDocumentEditResult("{\"radical\":true,\"reason\":\"r\",\"changes\":[]}",0,0,BigDecimal.ZERO);});
   when(o.runEdit(eq(edit),anyString())).thenAnswer(a->{contexts.add(a.getArgument(1));return new OrchestratorResult(in,0,0,BigDecimal.ZERO);});
   new DocumentEditService(r,o,preview,new FileValidator(),new FileStorageService(tmp.toString()),mock(BudgetService.class),mock(ApplicationEventPublisher.class),mapper,patch,new JobCancellationRegistry()).processEditAsync(edit.getId(),original.getId());
-  assertTrue(contexts.getFirst().contains("WORKBOOK_SENTINEL"),"XLSX edit receives unsupported-preview placeholder, not cells");
+  assertEquals(2,contexts.size());
+  assertTrue(contexts.stream().allMatch(c->c.contains("WORKBOOK_SENTINEL")),"XLSX edit receives unsupported-preview placeholder, not cells");
+ }
+ Path styledDocx() throws Exception {
+  Path in=tmp.resolve("styled.docx");
+  try(XWPFDocument d=new XWPFDocument()){var r=d.createParagraph().createRun();r.setText("Eski başlık");r.setBold(true);r.setFontSize(28);r.setColor("C00000");d.createParagraph().createRun().setText("Gövde metni");try(var os=Files.newOutputStream(in)){d.write(os);}}
+  return in;
+ }
+ DocumentEditService editService(JobRepository r, ClaudeOrchestrator o) throws Exception {
+  return new DocumentEditService(r,o,preview,new FileValidator(),new FileStorageService(tmp.toString()),mock(BudgetService.class),mock(ApplicationEventPublisher.class),mapper,patch,new JobCancellationRegistry());
+ }
+ @Test void aiEditMustKeepTheDocxTemplateAndLeaveTheOriginalAlone() throws Exception {
+  Path in=styledDocx();byte[] originalBytes=Files.readAllBytes(in);
+  Job original=fileJob(in,OutputFormat.DOCX);Job edit=fileJob(tmp.resolve("unused.docx"),OutputFormat.DOCX);edit.setStatus(JobStatus.PENDING);
+  JobRepository r=repo(original);when(r.findById(edit.getId())).thenReturn(Optional.of(edit));
+  ClaudeOrchestrator o=mock(ClaudeOrchestrator.class);var slots=new ArrayList<String>();
+  when(o.runTemplateEdit(eq(edit),anyString())).thenAnswer(a->{slots.add(a.getArgument(1));return new OrchestratorDocumentEditResult(
+    "{\"radical\":false,\"reason\":\"r\",\"changes\":[{\"id\":\"blocks/0/text\",\"text\":\"Yeni başlık\"}]}",10,5,BigDecimal.ONE);});
+  editService(r,o).processEditAsync(edit.getId(),original.getId());
+  assertEquals(JobStatus.DONE,edit.getStatus(),edit.getError());
+  assertEquals("TEMPLATE",edit.getEditMode());
+  assertTrue(slots.getFirst().contains("[blocks/0/text] Eski başlık"));
+  verify(o,never()).runEdit(any(),anyString());
+  assertArrayEquals(originalBytes,Files.readAllBytes(in),"original file must stay untouched");
+  try(XWPFDocument d=new XWPFDocument(Files.newInputStream(Path.of(edit.getFilePath())))){
+   var run=d.getParagraphs().getFirst().getRuns().getFirst();
+   assertEquals("Yeni başlık",d.getParagraphs().getFirst().getText());
+   assertTrue(run.isBold());assertEquals(28.0,run.getFontSizeAsDouble());assertEquals("C00000",run.getColor());
+   assertEquals("Gövde metni",d.getParagraphs().get(1).getText());
+  }
+ }
+ @Test void radicalOrUnwritableAiEditMustMakeANewDocument() throws Exception {
+  for(String answer:List.of("{\"radical\":true,\"reason\":\"yeni bölüm\",\"changes\":[]}",
+    "{\"radical\":false,\"reason\":\"r\",\"changes\":[{\"id\":\"blocks/0/text\",\"text\":\"iki\\nsatır\"}]}")){
+   Path in=styledDocx();
+   Job original=fileJob(in,OutputFormat.DOCX);Job edit=fileJob(tmp.resolve("unused.docx"),OutputFormat.DOCX);edit.setStatus(JobStatus.PENDING);
+   JobRepository r=repo(original);when(r.findById(edit.getId())).thenReturn(Optional.of(edit));
+   ClaudeOrchestrator o=mock(ClaudeOrchestrator.class);
+   when(o.runTemplateEdit(eq(edit),anyString())).thenReturn(new OrchestratorDocumentEditResult(answer,0,0,BigDecimal.ZERO));
+   when(o.runEdit(eq(edit),anyString())).thenReturn(new OrchestratorResult(in,0,0,BigDecimal.ZERO));
+   editService(r,o).processEditAsync(edit.getId(),original.getId());
+   assertEquals("NEW_DOCUMENT",edit.getEditMode(),answer);
+   verify(o).runEdit(eq(edit),anyString());
+  }
  }
  @Test void closingOneEventSubscriberMustNotDisconnectOthers() {
   Job j=fileJob(tmp.resolve("x.csv"),OutputFormat.CSV); j.setStatus(JobStatus.PENDING); UUID id=j.getId();

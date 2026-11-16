@@ -142,6 +142,11 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
     }
 
     @Override
+    public OrchestratorDocumentEditResult runTemplateEdit(Job job, String slots) {
+        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+    }
+
+    @Override
     public OrchestratorPlanResult runPlan(Job job) {
         throw new UnsupportedOperationException(NOT_IMPLEMENTED);
     }
