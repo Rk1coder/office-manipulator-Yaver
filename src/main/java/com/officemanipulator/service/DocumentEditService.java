@@ -322,8 +322,6 @@ public class DocumentEditService {
             var result = orchestrator.runTemplateEdit(editJob, listing.toString());
             before.apply(editJob, result.inputTokens(), result.outputTokens(), result.cost());
             edit = objectMapper.readTree(result.editJson());
-        } catch (UnsupportedOperationException e) {
-            return null;
         } catch (IllegalStateException e) {
             // The model skipped submit_template_edit (common with small self-hosted models): fall back, don't fail.
             log.info("Edit job {} got no template edit ({}); generating a new document", editJob.getId(), e.getMessage());

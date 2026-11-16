@@ -28,33 +28,33 @@ import java.util.Map;
  * standalone Python Deep Agents service (deep-agent-service/) over HTTP; the Python side
  * writes a docx-npm script and calls back into this app's AgentToolsController to actually
  * generate/validate the file, reusing the same WordGenerator sandbox the legacy path uses.
- * Only DOCX generation (run()) is implemented so far — a PoC of one capability, not a full
- * replacement. All other AgentOrchestrator methods remain unimplemented for this phase.
+ * Only DOCX generation (run()) goes to the Python service so far; every other format and step
+ * (plan, design, edits) is delegated to the legacy {@link ClaudeOrchestrator}, so the
+ * deep-agents mode is fully usable while the migration continues one capability at a time.
  */
 @Service
 public class DeepAgentOrchestrator implements AgentOrchestrator {
-
-    private static final String NOT_IMPLEMENTED =
-            "DeepAgentOrchestrator is a routing stub only - not yet implemented. "
-                    + "Set app.agent.provider=legacy to use ClaudeOrchestrator.";
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final FileStorageService storageService;
     private final ModelPricing pricing;
     private final LlmClientProvider llm;
+    private final ClaudeOrchestrator legacy;
 
     public DeepAgentOrchestrator(
             ObjectMapper objectMapper,
             FileStorageService storageService,
             ModelPricing pricing,
             LlmClientProvider llm,
+            ClaudeOrchestrator legacy,
             @Value("${app.agent.deep-agents.base-url}") String baseUrl
     ) {
         this.objectMapper = objectMapper;
         this.storageService = storageService;
         this.pricing = pricing;
         this.llm = llm;
+        this.legacy = legacy;
         // HTTP/1.1 forced: the JDK client's default HTTP/2 upgrade attempt confuses uvicorn's
         // h11 parser (it logs "Unsupported upgrade request" and the request body never arrives),
         // which the Python side only ever receives as plain HTTP/1.1 FastAPI/uvicorn.
@@ -68,11 +68,7 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
 
     @Override
     public OrchestratorResult run(Job job) throws Exception {
-        if (job.getFormat() != OutputFormat.DOCX) {
-            throw new UnsupportedOperationException(
-                    "DeepAgentOrchestrator currently supports DOCX only (PoC scope). "
-                            + "Set app.agent.provider=legacy for other formats.");
-        }
+        if (job.getFormat() != OutputFormat.DOCX) return legacy.run(job);
         // The Python service builds its model from exactly this (whitelisted) provider/key/model,
         // so a request's override reaches it too; it travels only on the internal network.
         LlmSelection selection = llm.selectionFor(job.getId());
@@ -123,31 +119,31 @@ public class DeepAgentOrchestrator implements AgentOrchestrator {
 
     @Override
     public OrchestratorResult runEdit(Job job, String documentContext) throws Exception {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runEdit(job, documentContext);
     }
 
     @Override
     public String runFragmentEdit(Job job, String fragmentJson, String instruction) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runFragmentEdit(job, fragmentJson, instruction);
     }
 
     @Override
     public OrchestratorDesignResult runDesignDirection(Job job) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runDesignDirection(job);
     }
 
     @Override
     public OrchestratorDocumentEditResult runDocumentEdit(Job job, String currentText, String instruction) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runDocumentEdit(job, currentText, instruction);
     }
 
     @Override
     public OrchestratorDocumentEditResult runTemplateEdit(Job job, String slots) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runTemplateEdit(job, slots);
     }
 
     @Override
     public OrchestratorPlanResult runPlan(Job job) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        return legacy.runPlan(job);
     }
 }
