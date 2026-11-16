@@ -58,18 +58,34 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
     @Override
     public Response chat(LlmSelection selection, Request request) {
         String forced = request.forcedTool();
-        if (forced != null) {
-            // Ollama/LM Studio ignore a named tool_choice; saying it in the prompt makes them call it.
-            String rule = "You must respond ONLY by calling the function `" + forced + "`. Never answer in plain text.";
-            request = new Request(request.system() == null ? rule : request.system() + "\n\n" + rule,
-                    request.messages(), request.tools(), forced, request.maxTokens());
-        }
+        if (forced == null) return send(selection, request, false);
+        // Ollama/LM Studio ignore a named tool_choice; saying it in the prompt makes them call it.
+        String rule = "You must respond ONLY by calling the function `" + forced + "`. Never answer in plain text.";
+        Response response = asForcedCall(send(selection, withRule(request, rule), false), forced);
+        if (!response.toolCalls().isEmpty() || (response.text() != null && !response.text().isBlank())) return response;
+        // Ollama drops a tool call its parser can't read and returns nothing at all (seen with
+        // qwen2.5:7b); one retry without tools, in JSON mode, gets the same arguments as text.
+        Tool tool = request.tools().stream().filter(t -> t.name().equals(forced)).findFirst().orElse(null);
+        if (tool == null) return response;
+        String jsonRule = "Reply with ONLY one JSON object: the arguments of `" + forced + "`, matching this JSON schema:\n" + tool.inputSchema();
+        Request retry = withRule(new Request(request.system(), request.messages(), java.util.List.of(), null, request.maxTokens()), jsonRule);
+        Response second = asForcedCall(send(selection, retry, true), forced);
+        return new Response(second.text(), second.toolCalls(),
+                response.inputTokens() + second.inputTokens(), response.outputTokens() + second.outputTokens());
+    }
+
+    private static Request withRule(Request request, String rule) {
+        return new Request(request.system() == null ? rule : request.system() + "\n\n" + rule,
+                request.messages(), request.tools(), request.forcedTool(), request.maxTokens());
+    }
+
+    private Response send(LlmSelection selection, Request request, boolean jsonMode) {
         var body = toBody(requireSafeModel(selection.model()), request);
         // No output cap: the app asks for 32k, which a self-hosted model's context (vLLM: 8k-32k) rejects
         // outright; left out, the server caps output at whatever context remains.
         body.remove("max_completion_tokens");
-        Response response = fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
-        return forced == null ? response : asForcedCall(response, forced);
+        if (jsonMode) body.putObject("response_format").put("type", "json_object");
+        return fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
     }
 
     /** A model that still put the arguments in plain text (often fenced JSON) gets them treated as the forced call. */

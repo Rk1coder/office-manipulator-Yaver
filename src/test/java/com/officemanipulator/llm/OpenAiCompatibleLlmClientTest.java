@@ -73,6 +73,33 @@ class OpenAiCompatibleLlmClientTest {
         assertSame(prose, OpenAiCompatibleLlmClient.asForcedCall(prose, "submit_plan"));
     }
 
+    @Test void emptyForcedAnswerIsRetriedOnceInJsonModeWithoutTools() throws Exception {
+        var bodies = new java.util.ArrayList<String>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", ex -> {
+            bodies.add(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            // Ollama after dropping a tool call it couldn't parse: no text, no tool_calls.
+            reply(ex, 200, bodies.size() == 1
+                    ? "{\"choices\":[{\"message\":{\"content\":\"\"}}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":7}}"
+                    : "{\"choices\":[{\"message\":{\"content\":\"{\\\"radical\\\":false}\"}}],\"usage\":{\"prompt_tokens\":6,\"completion_tokens\":3}}");
+        });
+        server.start();
+        var client = new OpenAiCompatibleLlmClient("http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
+        var tool = new LlmClient.Tool("submit_template_edit", "d", HttpJson.JSON.readTree("{\"type\":\"object\",\"properties\":{\"radical\":{\"type\":\"boolean\"}}}"), true);
+
+        var response = client.chat(new LlmSelection(LlmProvider.OPENAI_COMPATIBLE, "EMPTY", "m", false),
+                new LlmClient.Request("SYS", List.of(LlmClient.Message.user("hi")), List.of(tool), "submit_template_edit", 10));
+
+        assertEquals(2, bodies.size());
+        assertFalse(response.firstToolCall("submit_template_edit").input().path("radical").asBoolean(true));
+        assertEquals(11, response.inputTokens());
+        assertEquals(10, response.outputTokens());
+        var retry = HttpJson.JSON.readTree(bodies.get(1));
+        assertTrue(retry.path("tools").isMissingNode() && retry.path("tool_choice").isMissingNode());
+        assertEquals("json_object", retry.at("/response_format/type").asText());
+        assertTrue(retry.at("/messages/0/content").asText().contains("\"radical\""), "schema must be in the prompt");
+    }
+
     @Test void baseUrlComesOnlyFromConfigAndMustBeHttp() {
         for (String bad : new String[]{"file:///etc/passwd", "ftp://host/v1", "vllm:8000/v1"}) {
             assertThrows(IllegalArgumentException.class, () -> new OpenAiCompatibleLlmClient(bad), bad);
