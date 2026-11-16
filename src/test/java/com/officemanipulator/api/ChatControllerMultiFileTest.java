@@ -64,6 +64,11 @@ class ChatControllerMultiFileTest {
         when(jobs.importSourceDocument(anyString(), any())).thenAnswer(i -> job(i.getArgument(0)));
         when(edits.sourceText(any())).thenReturn("x".repeat(ChatController.MAX_COMBINED_SOURCE_CHARS / 2));
         assertEquals(413, controller.chatWithFile(List.of(file("a.docx"), file("b.docx")), "x", null, null, null, null).getStatusCode().value());
+
+        // A small self-hosted context lowers the cap (MAX_SOURCE_CHARS).
+        when(edits.sourceText(any())).thenReturn("x".repeat(600));
+        controller.maxSourceChars = 1000;
+        assertEquals(413, controller.chatWithFile(List.of(file("a.docx"), file("b.docx")), "x", null, null, null, null).getStatusCode().value());
         verify(jobs, never()).createJob(any(), any(), any());
     }
 }

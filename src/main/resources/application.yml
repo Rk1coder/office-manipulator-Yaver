@@ -79,6 +79,8 @@ app:
     max-tool-turns: 4
   limits:
     source-text-bytes: 81920
+    # Multi-file sources are refused above this, never truncated; keep under the model's context (~4 chars/token).
+    source-chars: ${MAX_SOURCE_CHARS:400000}
     max-word-sections: 60
     max-ppt-slides: 80
     max-pdf-blocks: 400
