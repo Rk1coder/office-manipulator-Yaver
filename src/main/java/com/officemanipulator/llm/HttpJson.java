@@ -29,7 +29,9 @@ final class HttpJson {
 
     static HttpClient defaultClient() {
         // No redirects: a fixed endpoint must not be able to bounce the request (and its key) elsewhere.
-        return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NEVER).build();
+        // HTTP/1.1: on plain http:// the JDK tries an h2c upgrade, and uvicorn (vLLM) then drops the POST body.
+        return HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(20))
+                .followRedirects(HttpClient.Redirect.NEVER).build();
     }
 
     /** The model id ends up in a URL path (Gemini), so only plain identifier characters pass. */

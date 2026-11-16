@@ -41,11 +41,8 @@ public class OpenAiLlmClient implements LlmClient {
 
     static Map<String, String> auth(String apiKey) { return Map.of("Authorization", "Bearer " + apiKey); }
 
-    static ObjectNode toBody(String model, Request request) { return toBody(model, request, "max_completion_tokens"); }
-
-    /** {@code maxTokensField}: OpenAI wants max_completion_tokens; most compatible servers only read max_tokens. */
-    static ObjectNode toBody(String model, Request request, String maxTokensField) {
-        ObjectNode body = HttpJson.JSON.createObjectNode().put("model", model).put(maxTokensField, request.maxTokens());
+    static ObjectNode toBody(String model, Request request) {
+        ObjectNode body = HttpJson.JSON.createObjectNode().put("model", model).put("max_completion_tokens", request.maxTokens());
         ArrayNode messages = body.putArray("messages");
         if (request.system() != null) messages.addObject().put("role", "system").put("content", request.system());
         for (Message message : request.messages()) {

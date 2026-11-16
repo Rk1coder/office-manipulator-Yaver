@@ -57,8 +57,33 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
 
     @Override
     public Response chat(LlmSelection selection, Request request) {
-        return fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()),
-                toBody(requireSafeModel(selection.model()), request, "max_tokens")));
+        String forced = request.forcedTool();
+        if (forced != null) {
+            // Ollama/LM Studio ignore a named tool_choice; saying it in the prompt makes them call it.
+            String rule = "You must respond ONLY by calling the function `" + forced + "`. Never answer in plain text.";
+            request = new Request(request.system() == null ? rule : request.system() + "\n\n" + rule,
+                    request.messages(), request.tools(), forced, request.maxTokens());
+        }
+        var body = toBody(requireSafeModel(selection.model()), request);
+        // No output cap: the app asks for 32k, which a self-hosted model's context (vLLM: 8k-32k) rejects
+        // outright; left out, the server caps output at whatever context remains.
+        body.remove("max_completion_tokens");
+        Response response = fromBody(http.post(URI.create(endpoint() + "/chat/completions"), auth(selection.apiKey()), body));
+        return forced == null ? response : asForcedCall(response, forced);
+    }
+
+    /** A model that still put the arguments in plain text (often fenced JSON) gets them treated as the forced call. */
+    static Response asForcedCall(Response response, String forced) {
+        if (!response.toolCalls().isEmpty() || response.text() == null) return response;
+        String text = response.text().strip().replaceAll("(?s)^```(?:json)?\\s*(.*?)\\s*```$", "$1");
+        try {
+            JsonNode input = HttpJson.JSON.readTree(text);
+            if (!input.isObject()) return response;
+            return new Response(null, java.util.List.of(new ToolCall("text_" + forced, forced, input, null)),
+                    response.inputTokens(), response.outputTokens());
+        } catch (java.io.IOException e) {
+            return response;
+        }
     }
 
     private String endpoint() {

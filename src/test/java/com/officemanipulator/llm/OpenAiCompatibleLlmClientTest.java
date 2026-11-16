@@ -39,7 +39,7 @@ class OpenAiCompatibleLlmClientTest {
 
     @AfterEach void stop() { if (server != null) server.stop(0); }
 
-    @Test void verifiesAgainstServedModelsAndChatsWithMaxTokens() throws Exception {
+    @Test void verifiesAgainstServedModelsAndLeavesOutputCapToServer() throws Exception {
         var chatBody = new AtomicReference<String>();
         var client = new OpenAiCompatibleLlmClient(startFakeVllm(chatBody));
 
@@ -52,9 +52,25 @@ class OpenAiCompatibleLlmClientTest {
         assertEquals("merhaba", response.text());
         assertEquals(3, response.inputTokens());
         var sent = HttpJson.JSON.readTree(chatBody.get());
-        assertEquals(500, sent.path("max_tokens").asInt());
+        // A self-hosted context (vLLM --max-model-len) is smaller than the app's 32k cap; the server picks it.
+        assertTrue(sent.path("max_tokens").isMissingNode());
         assertTrue(sent.path("max_completion_tokens").isMissingNode());
         assertEquals("Qwen/Qwen2.5-7B-Instruct", sent.path("model").asText());
+    }
+
+    @Test void forcedToolIsStatedInPromptAndPlainJsonAnswerCountsAsTheCall() throws Exception {
+        var chatBody = new AtomicReference<String>();
+        var client = new OpenAiCompatibleLlmClient(startFakeVllm(chatBody));
+        var tool = new LlmClient.Tool("submit_plan", "d", HttpJson.JSON.readTree("{\"type\":\"object\"}"), false);
+        client.chat(new LlmSelection(LlmProvider.OPENAI_COMPATIBLE, "EMPTY", "m", false),
+                new LlmClient.Request("SYS", List.of(LlmClient.Message.user("hi")), List.of(tool), "submit_plan", 10));
+        var system = HttpJson.JSON.readTree(chatBody.get()).at("/messages/0/content").asText();
+        assertTrue(system.startsWith("SYS") && system.contains("`submit_plan`"), system);
+
+        var fenced = OpenAiCompatibleLlmClient.asForcedCall(new LlmClient.Response("```json\n{\"title\":\"T\"}\n```", List.of(), 1, 2), "submit_plan");
+        assertEquals("T", fenced.firstToolCall("submit_plan").input().path("title").asText());
+        var prose = new LlmClient.Response("merhaba", List.of(), 1, 2);
+        assertSame(prose, OpenAiCompatibleLlmClient.asForcedCall(prose, "submit_plan"));
     }
 
     @Test void baseUrlComesOnlyFromConfigAndMustBeHttp() {
@@ -67,6 +83,8 @@ class OpenAiCompatibleLlmClientTest {
         assertThrows(IllegalStateException.class,
                 () -> unconfigured.chat(selection, new LlmClient.Request(null, List.of(LlmClient.Message.user("x")), List.of(), null, 10)));
         assertEquals(LlmProvider.OPENAI_COMPATIBLE, LlmProvider.parse("openai_compatible"));
+        // vLLM (uvicorn) loses the POST body on the JDK's h2c upgrade over plain http://.
+        assertEquals(java.net.http.HttpClient.Version.HTTP_1_1, HttpJson.defaultClient().version());
     }
 
     @Test void modelIdsMayHaveSlashButNoTraversal() {
