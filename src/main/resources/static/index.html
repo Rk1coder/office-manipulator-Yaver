@@ -2484,7 +2484,10 @@ class Component extends DCLogic {
               wysiwyg: { active: false, dirty: false, data: null, saving: true } }));
             this.fetchPreview(newJobId).then(result => {
               if (epoch !== this.epoch || result === null) return;
-              push({ text: result === true ? (L === 'tr' ? '✓ Belge güncellendi. Önizleme yenilendi.' : '✓ Document updated. Preview refreshed.') : (L === 'tr' ? 'Önizleme yüklenemedi. Belgeyi geçmişten yeniden açın.' : 'Preview failed to load. Reopen the document from history.') });
+              const done = job.editMode === 'TEMPLATE' ? (L === 'tr' ? '✓ Belge şablonu korunarak güncellendi.' : '✓ Document updated; template kept.')
+                : job.editMode === 'NEW_DOCUMENT' ? (L === 'tr' ? '✓ Değişiklik yapıyı etkilediği için yeni bir belge oluşturuldu; önceki sürüm geçmişte duruyor.' : '✓ The change affected the structure, so a new document was created; the previous version stays in history.')
+                : (L === 'tr' ? '✓ Belge güncellendi.' : '✓ Document updated.');
+              push({ text: result === true ? done + (L === 'tr' ? ' Önizleme yenilendi.' : ' Preview refreshed.') : (L === 'tr' ? 'Önizleme yüklenemedi. Belgeyi geçmişten yeniden açın.' : 'Preview failed to load. Reopen the document from history.') });
             });
             this.fetchBudget(); this.fetchHistory(); this.pushVersion(newJobId, text);
             try { localStorage.setItem('yv_lastJob', newJobId); } catch (e) {}

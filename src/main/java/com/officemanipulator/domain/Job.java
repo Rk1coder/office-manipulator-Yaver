@@ -85,4 +85,8 @@ public class Job {
 
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(72);
+
+    /** AI edits only: TEMPLATE = changed in place on the original file; NEW_DOCUMENT = regenerated. */
+    @Column(name = "edit_mode")
+    private String editMode;
 }

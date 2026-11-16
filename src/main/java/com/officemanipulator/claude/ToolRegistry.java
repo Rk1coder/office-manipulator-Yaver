@@ -107,6 +107,25 @@ public class ToolRegistry {
 
     /** Yaver in-editor chat panel's edit call: returns both the rewritten text AND structured
      * formatting instructions the ONLYOFFICE bridge can apply via its internal document API. */
+    /** Template-preserving whole-document edit: only changed text slots, or radical=true for a new document. */
+    public LlmClient.Tool templateEditTool() {
+        Map<String, Object> change = Map.of("type", "object",
+                "properties", Map.of("id", Map.of("type", "string"), "text", Map.of("type", "string")),
+                "required", List.of("id", "text"), "additionalProperties", false);
+        Map<String, Object> properties = Map.of(
+                "radical", Map.of("type", "boolean"),
+                "reason", Map.of("type", "string"),
+                "changes", Map.of("type", "array", "items", change));
+        var builder = Tool.InputSchema.Properties.builder();
+        properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
+        return toLlm(Tool.builder().name("submit_template_edit")
+                .description("Submit the changed text slots (id + full new text), or radical=true with no changes when the edit needs structural changes.")
+                .strict(true)
+                .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
+                        .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build())
+                .build());
+    }
+
     public LlmClient.Tool documentEditTool() {
         Map<String, Object> text = Map.of("type", "string");
         Map<String, Object> nullableText = Map.of("type", List.of("string", "null"));

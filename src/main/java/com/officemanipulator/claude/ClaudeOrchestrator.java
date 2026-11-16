@@ -166,6 +166,20 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
      * specific to a live ONLYOFFICE selection and can express real visual formatting, which the
      * bridge plugin applies through ONLYOFFICE's internal document API.
      */
+    public OrchestratorDocumentEditResult runTemplateEdit(Job job, String slots) {
+        String userMsg = "TEXT SLOTS:\n" + slots + "\n\nEDIT INSTRUCTION: " + job.getRequest();
+        Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.TEMPLATE_EDIT,
+                List.of(Message.user(userMsg)), List.of(toolRegistry.templateEditTool()), "submit_template_edit", maxTokens));
+        ToolCall edit = response.firstToolCall("submit_template_edit");
+        if (edit == null) throw new IllegalStateException("Şablonlu düzenleme çağrısı tamamlanmadı.");
+        try {
+            return new OrchestratorDocumentEditResult(objectMapper.writeValueAsString(edit.input()), (int) response.inputTokens(),
+                    (int) response.outputTokens(), computeCost(job, response.inputTokens(), response.outputTokens()));
+        } catch (Exception e) {
+            throw new IllegalStateException("Template edit could not be serialized", e);
+        }
+    }
+
     public OrchestratorDocumentEditResult runDocumentEdit(Job job, String currentText, String instruction) {
         String userMsg = "CURRENT SELECTED TEXT:\n" + currentText + "\n\nINSTRUCTION: " + instruction;
         Response response = billedRequest(job, new LlmClient.Request(SystemPrompts.DOCUMENT_AGENT,

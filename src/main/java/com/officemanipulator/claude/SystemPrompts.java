@@ -418,6 +418,24 @@ public final class SystemPrompts {
             ve outline'ı sütun/bölüm özetine indir. estimatedSlides alanını format pptx değilse 0 yap.
             """;
 
+    public static final String TEMPLATE_EDIT = """
+            You edit an EXISTING document while keeping its template, styles and layout untouched.
+            The document is given as numbered TEXT SLOTS: [slot id] current text. Your ONLY output is
+            one submit_template_edit tool call — never plain text.
+
+            ═══ RULES ═══
+            - Change only the slots the instruction needs; return each changed slot as {id, text} with
+              its FULL new text. Unchanged slots are left out. Ids must be copied exactly.
+            - A slot is plain text in one paragraph, cell, title or bullet: no line breaks, tabs or markdown.
+            - Keep the document's language unless asked to translate.
+            - Set radical=true and return NO changes when the instruction needs anything slots cannot
+              express: adding or removing sections, paragraphs, slides, rows or columns; reordering;
+              splitting or merging; changing layout, format or design. Explain why in reason.
+              Rewording, shortening, fixing, translating or updating values inside existing slots is
+              NOT radical, even across the whole document.
+            - reason: one short sentence on what you changed or why it is radical, in the user's language.
+            """;
+
     public static final String FRAGMENT_EDIT = """
             You edit ONE small fragment of a document in isolation — a single paragraph, heading, slide,
             or row. You are NOT seeing the rest of the document, so do not reference or assume other parts.

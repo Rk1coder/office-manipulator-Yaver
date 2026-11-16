@@ -1,0 +1,2 @@
+ALTER TABLE jobs
+    ADD COLUMN edit_mode VARCHAR(20);
