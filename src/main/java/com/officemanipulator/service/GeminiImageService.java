@@ -21,6 +21,8 @@ import java.util.UUID;
  * Generates images via Gemini's native image generation (generateContent with
  * responseModalities: ["TEXT","IMAGE"] — the "Nano Banana" family of models) for use in
  * generated documents. Disabled (returns empty) when no API key is configured.
+ * With IMAGE_OPENAI_COMPATIBLE_BASE_URL set (e.g. OpenRouter), the same image models are called through
+ * an OpenAI-compatible chat/completions endpoint instead ({@code modalities: ["image","text"]}).
  */
 @Service
 public class GeminiImageService {
@@ -44,6 +46,8 @@ public class GeminiImageService {
     private final ObjectMapper objectMapper;
 
     private final String model;
+    /** Operator .env only (never from a request); blank = Google's native Gemini API. */
+    private final String compatibleBaseUrl;
     private final String envApiKey;
     private final boolean envEnabled;
     private final com.officemanipulator.config.AppSettingsService settings;
@@ -53,12 +57,26 @@ public class GeminiImageService {
             @Value("${app.gemini.api-key:}") String envApiKey,
             @Value("${app.gemini.model:gemini-3.1-flash-image-preview}") String model,
             @Value("${app.gemini.enabled:false}") boolean envEnabled) {
+        this(storageService, objectMapper, settings, envApiKey, model, envEnabled, "");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public GeminiImageService(FileStorageService storageService, ObjectMapper objectMapper,
+            com.officemanipulator.config.AppSettingsService settings,
+            @Value("${app.gemini.api-key:}") String envApiKey,
+            @Value("${app.gemini.model:gemini-3.1-flash-image-preview}") String model,
+            @Value("${app.gemini.enabled:false}") boolean envEnabled,
+            @Value("${app.gemini.openai-compatible-base-url:}") String compatibleBaseUrl) {
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.settings = settings;
         this.envApiKey = envApiKey;
         this.model = model;
         this.envEnabled = envEnabled;
+        String base = compatibleBaseUrl == null ? "" : compatibleBaseUrl.trim().replaceAll("/+$", "");
+        if (!base.isEmpty() && !base.matches("https?://[^/\\s]+(/.*)?"))
+            throw new IllegalArgumentException("IMAGE_OPENAI_COMPATIBLE_BASE_URL http(s)://host[:port]/v1 biçiminde olmalı");
+        this.compatibleBaseUrl = base;
         var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(
                 java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(20)).build());
         factory.setReadTimeout(java.time.Duration.ofMinutes(2));
@@ -75,7 +93,8 @@ public class GeminiImageService {
     /** Image key, else .env GEMINI_API_KEY, else the Gemini key saved for the LLM provider. */
     private String apiKey() {
         String key = settings.get(KEY_API_KEY, envApiKey);
-        if ((key == null || key.isBlank()) && llm != null) key = llm.configuredKey(com.officemanipulator.llm.LlmProvider.GEMINI);
+        if ((key == null || key.isBlank()) && llm != null) key = llm.configuredKey(compatibleBaseUrl.isEmpty()
+                ? com.officemanipulator.llm.LlmProvider.GEMINI : com.officemanipulator.llm.LlmProvider.OPENAI_COMPATIBLE);
         return key;
     }
 
@@ -133,42 +152,65 @@ public class GeminiImageService {
         UUID reservation = billing.reserve(jobId, "gemini", cost(prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 8192L, OUTPUT_TOKENS));
         boolean settled = false;
         try {
-            Map<String, Object> body = Map.of(
-                    "contents", java.util.List.of(
-                            Map.of("parts", java.util.List.of(Map.of("text", prompt)))
-                    ),
-                    "generationConfig", Map.of("responseModalities", java.util.List.of("TEXT", "IMAGE"), "maxOutputTokens", OUTPUT_TOKENS)
-            );
+            String base64 = null;
+            int input, output;
+            if (compatibleBaseUrl.isEmpty()) {
+                Map<String, Object> body = Map.of(
+                        "contents", java.util.List.of(
+                                Map.of("parts", java.util.List.of(Map.of("text", prompt)))
+                        ),
+                        "generationConfig", Map.of("responseModalities", java.util.List.of("TEXT", "IMAGE"), "maxOutputTokens", OUTPUT_TOKENS)
+                );
 
-            String response = restClient.post()
-                    .uri("/v1beta/models/{model}:generateContent", model)
-                    .header("x-goog-api-key", apiKey())
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
+                String response = restClient.post()
+                        .uri("/v1beta/models/{model}:generateContent", model)
+                        .header("x-goog-api-key", apiKey())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
 
-            JsonNode root = objectMapper.readTree(response);
-            JsonNode usage = root.path("usageMetadata");
-            if (!usage.has("promptTokenCount") || !usage.has("totalTokenCount"))
-                throw new IllegalStateException("Gemini response is missing usage; cost reservation retained");
-            int input = usage.path("promptTokenCount").asInt();
-            int output = Math.max(0, usage.path("totalTokenCount").asInt() - input);
+                JsonNode root = objectMapper.readTree(response);
+                JsonNode usage = root.path("usageMetadata");
+                if (!usage.has("promptTokenCount") || !usage.has("totalTokenCount"))
+                    throw new IllegalStateException("Gemini response is missing usage; cost reservation retained");
+                input = usage.path("promptTokenCount").asInt();
+                output = Math.max(0, usage.path("totalTokenCount").asInt() - input);
+                JsonNode parts = root.path("candidates").path(0).path("content").path("parts");
+                if (parts.isArray()) {
+                    for (JsonNode part : parts) {
+                        JsonNode inline = part.path("inlineData");
+                        if (inline.has("data")) {
+                            base64 = inline.path("data").asText(null);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                Map<String, Object> body = Map.of("model", model, "modalities", java.util.List.of("image", "text"),
+                        "messages", java.util.List.of(Map.of("role", "user", "content", prompt)));
+                String response = restClient.post()
+                        .uri(java.net.URI.create(compatibleBaseUrl + "/chat/completions"))
+                        .header("Authorization", "Bearer " + apiKey())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+
+                JsonNode root = objectMapper.readTree(response);
+                JsonNode usage = root.path("usage");
+                if (!usage.has("prompt_tokens") || !usage.has("completion_tokens"))
+                    throw new IllegalStateException("Image response is missing usage; cost reservation retained");
+                input = usage.path("prompt_tokens").asInt();
+                output = usage.path("completion_tokens").asInt();
+                // OpenRouter: message.images[].image_url.url = "data:image/png;base64,...."
+                String url = root.path("choices").path(0).path("message").path("images").path(0).path("image_url").path("url").asText("");
+                if (url.startsWith("data:image/") && url.contains(";base64,")) base64 = url.substring(url.indexOf(";base64,") + 8);
+            }
             var amount = cost(input, output);
             billing.settle(reservation, amount, input, output);
             settled = true;
             jobs.addUsage(jobId, input, output, amount);
-            JsonNode parts = root.path("candidates").path(0).path("content").path("parts");
-            String base64 = null;
-            if (parts.isArray()) {
-                for (JsonNode part : parts) {
-                    JsonNode inline = part.path("inlineData");
-                    if (inline.has("data")) {
-                        base64 = inline.path("data").asText(null);
-                        break;
-                    }
-                }
-            }
             if (base64 == null) {
                 throw new IllegalStateException("Gemini returned no image for section " + index);
             }

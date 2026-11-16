@@ -132,6 +132,7 @@ docker compose -p office-manipulator-teslim logs -f app   # yalnızca uygulama s
 | `FILE_TTL_HOURS` | Üretilen/yüklenen dosyaların ne kadar süre saklanacağı | Varsayılan `72` (saat); ihtiyaca göre değiştirebilirsiniz |
 | `BUDGET_LIMIT_USD` | AI çağrıları için bütçe tavanı | AI kapalıyken etkisizdir, değiştirmenize gerek yok |
 | `GEMINI_ENABLED`, `GEMINI_IMAGE_MODEL`, `GEMINI_INPUT/OUTPUT_PRICE_PER_MILLION` | Opsiyonel AI görsel üretimi (`GEMINI_API_KEY`'i kullanır; fiyat girilmeden çalışmaz) | `false` bırakın |
+| `IMAGE_OPENAI_COMPATIBLE_BASE_URL` | Görselleri Google Gemini API yerine OpenAI-uyumlu bir uç noktadan üretir (örn. OpenRouter: `https://openrouter.ai/api/v1`, `GEMINI_IMAGE_MODEL=google/gemini-2.5-flash-image`) | Boş = Google Gemini API. Doluysa `GEMINI_API_KEY` boş bırakılabilir, `OPENAI_COMPATIBLE_API_KEY` kullanılır |
 
 AI kapalıyken (anahtar boşken) model ve fiyat satırları etkisizdir; dokunmanıza gerek yoktur.
 
