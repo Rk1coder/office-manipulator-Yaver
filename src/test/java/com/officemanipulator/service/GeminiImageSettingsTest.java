@@ -50,4 +50,44 @@ class GeminiImageSettingsTest {
         assertTrue(images.isEnabled());
         assertEquals(new BigDecimal("30"), images.outputPrice());
     }
+
+    @Test void anOpenAiCompatibleEndpointGeneratesTheImageWithTheLlmKey(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tmp) throws Exception {
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G'};
+        var seen = new java.util.ArrayList<String>();
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/chat/completions", ex -> {
+            seen.add(ex.getRequestHeaders().getFirst("Authorization") + " " + new String(ex.getRequestBody().readAllBytes()));
+            byte[] out = ("{\"choices\":[{\"message\":{\"content\":\"\",\"images\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,"
+                    + java.util.Base64.getEncoder().encodeToString(png) + "\"}}]}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":1290}}").getBytes();
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length); ex.getResponseBody().write(out); ex.close();
+        });
+        server.start();
+        try {
+            var settings = mock(AppSettingsService.class);
+            when(settings.get(anyString(), nullable(String.class))).thenAnswer(a -> stored.getOrDefault(a.getArgument(0), a.getArgument(1)));
+            var images = new GeminiImageService(new FileStorageService(tmp.toString()), new ObjectMapper(), settings, "", "google/gemini-2.5-flash-image", true,
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/api/v1/");
+            var llm = mock(LlmClientProvider.class);
+            when(llm.configuredKey(LlmProvider.OPENAI_COMPATIBLE)).thenReturn("sk-or-test");
+            var billing = mock(ApiBillingService.class);
+            when(billing.reserve(any(), anyString(), any())).thenReturn(UUID.randomUUID());
+            ReflectionTestUtils.setField(images, "llm", llm);
+            ReflectionTestUtils.setField(images, "billing", billing);
+            ReflectionTestUtils.setField(images, "jobs", mock(com.officemanipulator.domain.JobRepository.class));
+            ReflectionTestUtils.setField(images, "envInputPrice", new BigDecimal("0.30"));
+            ReflectionTestUtils.setField(images, "envOutputPrice", new BigDecimal("30"));
+
+            var path = images.generateImage("bir karınca kolonisi", UUID.randomUUID(), "2").orElseThrow();
+
+            assertArrayEquals(png, java.nio.file.Files.readAllBytes(path));
+            assertTrue(seen.get(0).startsWith("Bearer sk-or-test "), "OpenRouter uses the LLM's compatible key");
+            assertTrue(seen.get(0).contains("\"modalities\":[\"image\",\"text\"]") && seen.get(0).contains("google/gemini-2.5-flash-image"));
+            verify(billing).settle(any(), eq(new BigDecimal("0.038703")), eq(10L), eq(1290L));
+        } finally {
+            server.stop(0);
+        }
+        assertThrows(IllegalArgumentException.class, () -> new GeminiImageService(new FileStorageService("/tmp"), new ObjectMapper(),
+                mock(AppSettingsService.class), "", "m", true, "file:///etc"));
+    }
 }
