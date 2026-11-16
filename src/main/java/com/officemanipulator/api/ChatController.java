@@ -74,8 +74,11 @@ public class ChatController {
 
     /** Several files (repeat the "file" part) together are the sources of one new document. */
     static final int MAX_SOURCE_FILES = 10;
-    /** Combined source text cap (~100k tokens); larger sources are refused, never truncated (truncation loses information). */
+    /** Combined source text cap (~100k tokens); larger sources are refused, never truncated (truncation loses information).
+     * Lower it (MAX_SOURCE_CHARS) for a self-hosted model with a small context. */
     static final int MAX_COMBINED_SOURCE_CHARS = 400_000;
+    @org.springframework.beans.factory.annotation.Value("${app.limits.source-chars:400000}")
+    int maxSourceChars = MAX_COMBINED_SOURCE_CHARS;
 
     /** One file: edit or convert it. Several files: one new document is generated from all of them. */
     @PostMapping(value = "/with-file", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -120,9 +123,9 @@ public class ChatController {
                     sources.append("=== BELGE ").append(i + 1).append(": ").append(source.getFileName()).append(" ===\n")
                             .append(documentEditService.sourceText(source)).append("\n");
                 }
-                if (sources.length() > MAX_COMBINED_SOURCE_CHARS) {
+                if (sources.length() > maxSourceChars) {
                     return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.of(
-                            "Belgelerin toplam metni çok uzun (" + sources.length() + " karakter, en fazla " + MAX_COMBINED_SOURCE_CHARS
+                            "Belgelerin toplam metni çok uzun (" + sources.length() + " karakter, en fazla " + maxSourceChars
                                     + "). Bilgi kaybı olmaması için kesilmedi; daha az belgeyle deneyin."));
                 }
                 Job job = jobService.createJob(message, sources.toString(), targetFormat);
