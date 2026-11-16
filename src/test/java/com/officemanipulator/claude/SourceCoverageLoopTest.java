@@ -101,6 +101,19 @@ class SourceCoverageLoopTest {
         assertEquals("Kalem,Tutar\nKira,40000", Files.readString(result.outputPath()));
     }
 
+    @Test void aRewriteThatFixesSomeButDropsOthersIsDiscarded() throws Exception {
+        var llm = new VisualReviewLoopTest.ScriptedLlm();
+        var job = sourcedJob();
+        job.setSourceText(job.getSourceText() + "\nCiro 186000 ve 197250");
+        llm.answers.add(csvCall("Kalem,Tutar\nKira,40000\nPersonel,90000"));
+        // Seen with qwen2.5:7b: adds the missing figures but loses ones the first version had.
+        llm.answers.add(csvCall("Bölge,Hedef\nA,186000\nB,197250"));
+
+        var result = orchestrator(llm, writingDispatcher(), 3).run(job);
+
+        assertEquals("Kalem,Tutar\nKira,40000\nPersonel,90000", Files.readString(result.outputPath()));
+    }
+
     @Test void completeOutputOrNoSourceNeedsNoRewrite() throws Exception {
         var llm = new VisualReviewLoopTest.ScriptedLlm();
         llm.answers.add(csvCall("Kalem,Tutar\nKira,40.000\nPersonel,90.000"));
