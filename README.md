@@ -50,7 +50,7 @@ curl -H "$H" -OJ $B/api/files/<jobId>/download
 | Uç nokta | İş |
 |---|---|
 | `POST /api/chat` | Metin isteğinden belge işi oluşturur (`format`: DOCX, PPTX, XLSX, PDF, CSV, …) |
-| `POST /api/chat/with-file` | Dosya yükleyerek iş oluşturur (multipart: `message`, `file`) |
+| `POST /api/chat/with-file` | Dosya yükleyerek iş oluşturur (multipart: `message`, `file`). Tek dosya düzenlenir veya dönüştürülür; `file` en fazla 10 kez tekrarlanırsa tüm belgelerden tek yeni belge üretilir ve kaynak rakamların çıktıda yer aldığı kontrol edilir |
 | `GET /api/jobs`, `GET /api/jobs/{id}` | İş listesi / tek iş durumu |
 | `GET /api/jobs/{id}/events` | Durum değişikliklerini SSE olarak akıtır |
 | `GET /api/jobs/{id}/plan`, `POST …/plan/confirm` | Üretim planını görme / onaylama |

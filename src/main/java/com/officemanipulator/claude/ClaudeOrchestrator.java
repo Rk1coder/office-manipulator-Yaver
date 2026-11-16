@@ -56,6 +56,9 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     private com.officemanipulator.office.SlideRenderer renderer;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PresentationSkills skills;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.preview.PreviewService previewService;
+    private static final int MAX_LISTED_GAPS = 60;
     private String pricingModel;
     private BigDecimal inputPricePerMillion;
     private BigDecimal outputPricePerMillion;
@@ -252,6 +255,10 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         int failures = 0;
         boolean lastFailed = false;
         boolean review = reviewable(job) && reviewRounds > 0;
+        // One rewrite when source figures went missing; the version before it ships if the rewrite fails.
+        boolean coverageChecked = false;
+        int gapsBefore = -1; // figures missing before the coverage rewrite; -1 once it has been judged
+        Path beforeCoverage = outputPath.resolveSibling("covered-" + outputPath.getFileName());
         // The format fixes the tool; forcing it stops models (notably Gemini) from answering with the
         // script as plain text instead of a tool call.
         String forced = job.getFormat() == null ? null : generationTool(job.getFormat());
@@ -301,6 +308,23 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             lastFailed = toolResult.startsWith("ERROR");
             if (lastFailed) { lastError = toolResult; failures++; continue; }
             succeeded = true;
+            if (!coverageChecked) {
+                coverageChecked = true;
+                List<String> gaps = missingSourceFigures(job, outputPath);
+                if (!gaps.isEmpty()) {
+                    java.nio.file.Files.copy(outputPath, beforeCoverage, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    gapsBefore = gaps.size();
+                    messages.add(sourceCoverageFeedback(job, gaps));
+                    continue;
+                }
+            } else if (gapsBefore >= 0) {
+                // A small model may answer the feedback with garbage (seen: the feedback text written as the CSV).
+                if (missingSourceFigures(job, outputPath).size() >= gapsBefore) {
+                    log.info("Job {}: source-coverage rewrite did not help, keeping the version before it", job.getId());
+                    java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                gapsBefore = -1;
+            }
             if (!review) break;
             long[] reviewUsage = new long[2];
             SlideReview verdict = reviewSlides(job, outputPath, reviewUsage);
@@ -320,6 +344,11 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         }
 
         if (!succeeded) throw new IllegalStateException("All generation attempts failed: " + lastError);
+        if (lastFailed && gapsBefore >= 0 && !java.nio.file.Files.exists(best)) {
+            log.info("Job {} ships its version before the failed source-coverage rewrite", job.getId());
+            java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        java.nio.file.Files.deleteIfExists(beforeCoverage);
         if (java.nio.file.Files.exists(best)) {
             if (!currentIsBest) {
                 log.info("Job {} ships its best-reviewed version (score {})", job.getId(), bestScore);
@@ -433,6 +462,30 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         appendDesignDirection(content, job);
         appendImageInstructions(content, job);
         return Message.user(content.toString());
+    }
+
+    /** Empty when the job has no source, the check can't run, or every source figure made it into the output. */
+    private List<String> missingSourceFigures(Job job, Path outputPath) {
+        if (previewService == null || job.getSourceText() == null || job.getSourceText().isBlank()) return List.of();
+        Job generated = new Job();
+        generated.setFormat(job.getFormat().generationFormat());
+        generated.setFilePath(outputPath.toString());
+        try {
+            return SourceCoverage.missing(job.getSourceText(), objectMapper.writeValueAsString(previewService.extract(generated)));
+        } catch (Exception e) {
+            log.warn("Job {}: source coverage not checked: {}", job.getId(), e.getMessage());
+            return List.of();
+        }
+    }
+
+    private Message sourceCoverageFeedback(Job job, List<String> missing) {
+        log.info("Job {}: {} source figure(s) missing from the output, asking for one rewrite", job.getId(), missing.size());
+        String listed = String.join(", ", missing.subList(0, Math.min(missing.size(), MAX_LISTED_GAPS)))
+                + (missing.size() > MAX_LISTED_GAPS ? " … (+" + (missing.size() - MAX_LISTED_GAPS) + " more)" : "");
+        return Message.user("SOURCE COVERAGE CHECK: these figures from the SOURCE CONTENT do not appear in the generated document: "
+                + listed + ". No information from the sources may be lost. Call the tool again with the COMPLETE script so every one of"
+                + " them appears with its context (text, table or speaker notes), keeping everything already there. Only if the user"
+                + " explicitly asked to leave such details out, resubmit the same script unchanged.");
     }
 
     private void appendComputedFacts(StringBuilder content, Job job) {
