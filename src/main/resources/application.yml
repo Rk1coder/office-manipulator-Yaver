@@ -77,6 +77,12 @@ app:
     openai:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:}
+    # vLLM, Ollama, LM Studio, Groq, Mistral, DeepSeek, OpenRouter... (OpenAI Chat Completions API).
+    # base-url is operator config only, e.g. http://vllm:8000/v1. "EMPTY" = server without auth (vLLM default).
+    openai-compatible:
+      base-url: ${OPENAI_COMPATIBLE_BASE_URL:}
+      api-key: ${OPENAI_COMPATIBLE_API_KEY:EMPTY}
+      model: ${OPENAI_COMPATIBLE_MODEL:}
   presentation:
     # Render → visual review → rewrite rounds after a deck first validates (needs ONLYOFFICE; 0 = off).
     review-rounds: ${PRESENTATION_REVIEW_ROUNDS:2}

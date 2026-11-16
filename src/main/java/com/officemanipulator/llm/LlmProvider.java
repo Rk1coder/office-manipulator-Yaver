@@ -6,14 +6,16 @@ import java.util.stream.Collectors;
 
 /**
  * Closed whitelist of supported LLM providers. Each one maps to a code-side adapter
- * ({@link LlmClient}) with a fixed, hard-coded endpoint — never a URL taken from a request,
- * which would let a caller point the server at an arbitrary host (SSRF). Adding a provider
- * means adding an enum constant plus its adapter class, not a configurable endpoint.
+ * ({@link LlmClient}) with a fixed endpoint — never a URL taken from a request, which would let
+ * a caller point the server at an arbitrary host (SSRF). {@link #OPENAI_COMPATIBLE} (vLLM, Ollama,
+ * LM Studio, Groq, Mistral, DeepSeek, OpenRouter, ...) is the one exception: its endpoint is
+ * operator configuration ({@code OPENAI_COMPATIBLE_BASE_URL} in .env), still never request input.
  */
 public enum LlmProvider {
     ANTHROPIC("anthropic"),
     GEMINI("gemini"),
-    OPENAI("openai");
+    OPENAI("openai"),
+    OPENAI_COMPATIBLE("openai_compatible");
 
     private final String id;
 

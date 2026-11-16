@@ -42,7 +42,7 @@ class SettingsControllerTest {
     private LlmClientProvider newProvider(String key, ClaudeKeyVerifier verifier) {
         when(gemini.provider()).thenReturn(com.officemanipulator.llm.LlmProvider.GEMINI);
         return new LlmClientProvider(settings,pricing,java.util.List.of(new AnthropicLlmClient("",verifier),gemini),
-                "anthropic",key,"claude-sonnet-4-6","","","","");
+                "anthropic",key,"claude-sonnet-4-6","","","","","","");
     }
 
     @Test void savingArbitraryKeyMustNotActivateOrPersistIt() {

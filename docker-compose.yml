@@ -56,7 +56,7 @@ services:
       STORAGE_BASE_PATH: /data/files
       BUDGET_LIMIT_USD: ${BUDGET_LIMIT_USD:-20.00}
       FILE_TTL_HOURS: ${FILE_TTL_HOURS:-72}
-      # Customer-supplied LLM (anthropic|gemini|openai). Air-gapped default: AI/chat features
+      # Customer-supplied LLM (anthropic|gemini|openai|openai_compatible). Air-gapped default: AI/chat features
       # stay disabled while the selected provider's key is blank.
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_INPUT_PRICE_PER_MILLION: "${LLM_INPUT_PRICE_PER_MILLION:-${CLAUDE_INPUT_PRICE_PER_MILLION:-}}"
@@ -69,6 +69,10 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      # vLLM / Ollama / LM Studio / Groq ... (e.g. http://vllm:8000/v1); see .env.example.
+      OPENAI_COMPATIBLE_BASE_URL: ${OPENAI_COMPATIBLE_BASE_URL:-}
+      OPENAI_COMPATIBLE_API_KEY: ${OPENAI_COMPATIBLE_API_KEY:-EMPTY}
+      OPENAI_COMPATIBLE_MODEL: ${OPENAI_COMPATIBLE_MODEL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       PRESENTATION_REVIEW_ROUNDS: ${PRESENTATION_REVIEW_ROUNDS:-2}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-false}

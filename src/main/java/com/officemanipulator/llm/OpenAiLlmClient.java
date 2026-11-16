@@ -17,11 +17,13 @@ import java.util.Map;
 public class OpenAiLlmClient implements LlmClient {
     static final String BASE_URL = "https://api.openai.com/v1";
 
-    private final HttpJson http;
+    final HttpJson http;
 
     public OpenAiLlmClient() { this(HttpJson.defaultClient()); }
 
     OpenAiLlmClient(HttpClient client) { this.http = new HttpJson(client, "OpenAI"); }
+
+    OpenAiLlmClient(HttpClient client, String providerName) { this.http = new HttpJson(client, providerName); }
 
     @Override public LlmProvider provider() { return LlmProvider.OPENAI; }
 
@@ -37,10 +39,13 @@ public class OpenAiLlmClient implements LlmClient {
         return fromBody(response);
     }
 
-    private static Map<String, String> auth(String apiKey) { return Map.of("Authorization", "Bearer " + apiKey); }
+    static Map<String, String> auth(String apiKey) { return Map.of("Authorization", "Bearer " + apiKey); }
 
-    static ObjectNode toBody(String model, Request request) {
-        ObjectNode body = HttpJson.JSON.createObjectNode().put("model", model).put("max_completion_tokens", request.maxTokens());
+    static ObjectNode toBody(String model, Request request) { return toBody(model, request, "max_completion_tokens"); }
+
+    /** {@code maxTokensField}: OpenAI wants max_completion_tokens; most compatible servers only read max_tokens. */
+    static ObjectNode toBody(String model, Request request, String maxTokensField) {
+        ObjectNode body = HttpJson.JSON.createObjectNode().put("model", model).put(maxTokensField, request.maxTokens());
         ArrayNode messages = body.putArray("messages");
         if (request.system() != null) messages.addObject().put("role", "system").put("content", request.system());
         for (Message message : request.messages()) {

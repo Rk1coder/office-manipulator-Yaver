@@ -41,7 +41,8 @@ public class LlmClientProvider {
     public static final String KEY_MODEL = "claude.model";
     public static final String KEY_VERIFICATION = "claude.verified-fingerprint";
     private static final Pattern SAFE_KEY = Pattern.compile("[\\x21-\\x7e]{1,4096}");
-    private static final Pattern SAFE_MODEL = Pattern.compile("[a-zA-Z0-9._:-]{1,128}");
+    // "/" for Hugging Face style ids on OpenAI-compatible servers; each adapter re-checks its own ids.
+    private static final Pattern SAFE_MODEL = Pattern.compile("[a-zA-Z0-9._:/-]{1,128}");
     // shortcut: request keys bound to a job live in memory and expire after this TTL (or when the job ends); a restart drops them and the job falls back to the .env default — persist an encrypted marker if that matters.
     static final String KEY_PROVIDER = "llm.provider";
     private static final Duration BINDING_TTL = Duration.ofHours(24);
@@ -65,16 +66,20 @@ public class LlmClientProvider {
             @Value("${app.llm.gemini.api-key:}") String geminiKey,
             @Value("${app.llm.gemini.model:}") String geminiModel,
             @Value("${app.llm.openai.api-key:}") String openaiKey,
-            @Value("${app.llm.openai.model:}") String openaiModel) {
+            @Value("${app.llm.openai.model:}") String openaiModel,
+            @Value("${app.llm.openai-compatible.api-key:}") String compatibleKey,
+            @Value("${app.llm.openai-compatible.model:}") String compatibleModel) {
         this.settings = settings;
         this.pricing = pricing;
         this.envProvider = LlmProvider.parse(provider);
         envKeys.put(LlmProvider.ANTHROPIC, anthropicKey);
         envKeys.put(LlmProvider.GEMINI, geminiKey);
         envKeys.put(LlmProvider.OPENAI, openaiKey);
+        envKeys.put(LlmProvider.OPENAI_COMPATIBLE, compatibleKey);
         envModels.put(LlmProvider.ANTHROPIC, anthropicModel);
         envModels.put(LlmProvider.GEMINI, geminiModel);
         envModels.put(LlmProvider.OPENAI, openaiModel);
+        envModels.put(LlmProvider.OPENAI_COMPATIBLE, compatibleModel);
         adapters.forEach(adapter -> clients.put(adapter.provider(), adapter));
         if (blank(envModels.get(envProvider))) {
             throw new IllegalArgumentException(envProvider.name() + "_MODEL ayarlanmalı (LLM_PROVIDER=" + envProvider.id() + ")");

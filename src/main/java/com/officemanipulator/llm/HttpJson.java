@@ -56,8 +56,9 @@ final class HttpJson {
         }
     }
 
-    /** Models-API lookup for key verification; maps status codes the same way ClaudeKeyVerifier does. */
-    void verify(URI uri, Map<String, String> headers) {
+    /** Models-API lookup for key verification; maps status codes the same way ClaudeKeyVerifier does.
+     * Returns the parsed body (empty object if unparsable). */
+    JsonNode verify(URI uri, Map<String, String> headers) {
         var builder = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).header("Accept", "application/json").GET();
         headers.forEach(builder::header);
         HttpResponse<String> response;
@@ -77,6 +78,11 @@ final class HttpJson {
             case 404 -> throw new VerificationFailure(HttpStatus.BAD_REQUEST, "Seçili model bu anahtar için kullanılamıyor. Başka bir model seçin.");
             case 429 -> throw new VerificationFailure(HttpStatus.TOO_MANY_REQUESTS, providerName + " istek sınırına ulaşıldı. Biraz sonra tekrar deneyin.");
             default -> throw new VerificationFailure(HttpStatus.BAD_GATEWAY, providerName + " doğrulaması tamamlanamadı. Daha sonra tekrar deneyin.");
+        }
+        try {
+            return JSON.readTree(response.body());
+        } catch (IOException e) {
+            return JSON.createObjectNode();
         }
     }
 

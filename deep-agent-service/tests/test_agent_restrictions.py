@@ -32,3 +32,14 @@ def test_unknown_provider_is_rejected():
     import pytest
     with pytest.raises(ValueError):
         app.agent.build_model("http://evil.example", "key", "model")
+
+
+def test_openai_compatible_uses_env_base_url_and_restricted_profile(monkeypatch):
+    import pytest
+    monkeypatch.setattr(app.agent, "OPENAI_COMPATIBLE_BASE_URL", "")
+    with pytest.raises(ValueError):
+        app.agent.build_model("openai_compatible", "EMPTY", "Qwen/Qwen2.5-7B-Instruct")
+    monkeypatch.setattr(app.agent, "OPENAI_COMPATIBLE_BASE_URL", "http://vllm:8000/v1")
+    model = app.agent.build_model("openai_compatible", "EMPTY", "Qwen/Qwen2.5-7B-Instruct")
+    assert model.openai_api_base == "http://vllm:8000/v1"
+    assert harness._get_harness_profile(model._get_ls_params()["ls_provider"]).excluded_tools == frozenset(EXPECTED_EXCLUDED)

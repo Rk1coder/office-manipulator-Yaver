@@ -41,7 +41,8 @@ public class SettingsController {
     private static final Map<LlmProvider, List<String>> SUGGESTED_MODELS = Map.of(
             LlmProvider.ANTHROPIC, AVAILABLE_MODELS,
             LlmProvider.GEMINI, List.of("gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"),
-            LlmProvider.OPENAI, List.of("gpt-5", "gpt-5-mini", "gpt-4.1"));
+            LlmProvider.OPENAI, List.of("gpt-5", "gpt-5-mini", "gpt-4.1"),
+            LlmProvider.OPENAI_COMPATIBLE, List.of());
 
     /** Suggested models for the Settings dropdown, plus the stored/.env model if it isn't one of them. */
     private List<String> modelsFor(LlmProvider provider) {
@@ -53,7 +54,7 @@ public class SettingsController {
 
     /** Any plain model id (also typed by hand); "Kontrol et" proves the key can use it. */
     private static boolean modelAllowed(String model) {
-        return model.matches("[a-zA-Z0-9._:-]{1,128}") && !model.contains("..");
+        return model.matches("[a-zA-Z0-9._:/-]{1,128}") && !model.contains("..");
     }
 
     public record SettingsRequest(String claudeApiKey, String model, String geminiApiKey, Boolean geminiEnabled,
