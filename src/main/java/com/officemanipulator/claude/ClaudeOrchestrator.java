@@ -463,8 +463,9 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         long images = request.messages().stream().mapToLong(m -> m.images().size()).sum();
         // Images print as short placeholders in toString(); budget ~1600 tokens each (a 960×540 slide is well under).
         long inputCeiling = request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 2L + images * 1600 + 8192;
-        java.util.UUID reservation = billable ? billing.reserve(job.getId(), selection.provider().id(),
-            computeCost(selection.model(), inputCeiling, request.maxTokens())) : null;
+        BigDecimal ceiling = computeCost(selection.model(), inputCeiling, request.maxTokens());
+        // A free model (self-hosted vLLM/Ollama, price 0) has nothing to reserve against the budget.
+        java.util.UUID reservation = billable && ceiling.signum() > 0 ? billing.reserve(job.getId(), selection.provider().id(), ceiling) : null;
         Response response;
         try { response = provider.client(selection.provider()).chat(selection, request); }
         catch (RuntimeException e) { if (reservation != null) billing.uncertain(reservation); throw e; }
