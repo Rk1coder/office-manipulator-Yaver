@@ -500,12 +500,17 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         return Message.user("SOURCE COVERAGE CHECK: these figures from the SOURCE CONTENT do not appear in the generated document: "
                 + listed + ". No information from the sources may be lost. Call the tool again with the COMPLETE script so every one of"
                 + " them appears with its context (text, table or speaker notes), keeping everything already there. Only if the user"
-                + " explicitly asked to leave such details out, resubmit the same script unchanged.");
+                + " explicitly asked to leave such details out, resubmit the same script unchanged. Where a listed item differs"
+                + " from another source's value for the same thing (e.g. two opening dates), show both together and name each source.");
     }
 
     private void appendComputedFacts(StringBuilder content, Job job) {
         String facts = SourceTableFacts.summarize(job.getSourceText());
         if (!facts.isBlank()) content.append("\n\nCOMPUTED SOURCE TABLE SUMS (use these exact sums; do not confuse expenses with the budget):\n").append(facts);
+        String dates = SourceCoverage.datesBySource(job.getSourceText());
+        if (!dates.isBlank()) content.append("\n\nDATES BY SOURCE DOCUMENT (where two documents give different dates for the same event,")
+                .append(" state the conflict in one place with both dates and their document names, e.g. \"Açılış tarihi kaynaklarda farklı:")
+                .append(" 3 Mart 2026 (a.docx), 10 Mart 2026 (b.pptx)\"):\n").append(dates);
     }
 
     @SuppressWarnings("unchecked")
