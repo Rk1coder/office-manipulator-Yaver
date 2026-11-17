@@ -353,7 +353,12 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
             messages.add(verdict.feedback());
         }
 
-        if (!succeeded) throw new IllegalStateException("All generation attempts failed: " + lastError);
+        if (!succeeded) {
+            // The raw script error (stack trace, model output) is for the log; the user gets what to do next.
+            log.warn("Job {} all generation attempts failed: {}", job.getId(), lastError);
+            throw new IllegalStateException("Seçili model çalışan bir belge üretemedi (" + failures + " deneme). "
+                    + "Daha güçlü bir model seçin ya da isteği sadeleştirip tekrar deneyin.");
+        }
         if (lastFailed && gapsBefore != null && !java.nio.file.Files.exists(best)) {
             log.info("Job {} ships its version before the failed source-coverage rewrite", job.getId());
             java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
