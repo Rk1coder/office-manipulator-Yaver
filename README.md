@@ -180,6 +180,93 @@ docker compose -p office-manipulator-teslim logs -f app   # yalnızca uygulama s
 
 > `-p office-manipulator-teslim` bayrağı önemli: bu klasörün adı farklıysa Docker Compose proje adını klasör adından türetir ve `baslat.sh`'ın kullandığı sabit proje adıyla eşleşmeyebilir. `-p office-manipulator-teslim` yazmayı unutursanız komut "boş" görünebilir.
 
+## Yapay zekâ sağlayıcısını bağlama
+
+Yaver dört sağlayıcıyla çalışır: Anthropic, Gemini, OpenAI ve **OpenAI-uyumlu** sunucular (vLLM, Ollama, LM Studio, NanoGPT, OpenRouter…). Hangi modelin seçileceği için yukarıdaki [Model karşılaştırması](#model-karşılaştırması-benchmark) bölümüne bakın.
+
+**Arayüzden:**
+1. Ayarlar → Yapay zekâ → Sağlayıcı alanında **OpenAI-uyumlu** seçeneğini seçin.
+2. **Sunucu adresini** yazın (örn. `https://nano-gpt.com/api/v1` ya da `http://192.168.1.50:8000/v1`).
+3. API anahtarını girin. Anahtar istemeyen bir sunucu için `EMPTY` yazın.
+4. Modeli listeden seçin ya da "Diğer (elle gir)" ile adını yazın.
+5. **Kontrol et** düğmesine basın.
+
+Adres ve anahtar ancak doğrulama başarılı olursa kaydedilir.
+
+**`.env` ile** (örnekler):
+
+```bash
+# NanoGPT / OpenRouter gibi barındırılan bir API
+LLM_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_BASE_URL=https://nano-gpt.com/api/v1
+OPENAI_COMPATIBLE_API_KEY=<anahtarınız>
+OPENAI_COMPATIBLE_MODEL=openai/gpt-6.1-terra
+LLM_INPUT_PRICE_PER_MILLION=1      # modelin fiyatı (USD / 1M token); boşsa maliyet "ücret hesaplanmadı" görünür
+LLM_OUTPUT_PRICE_PER_MILLION=5
+
+# Kendi sunucunuzdaki vLLM (araç çağırma açık olmalı)
+#   vllm serve <model> --enable-auto-tool-choice --tool-call-parser hermes --max-model-len 32768
+LLM_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_BASE_URL=http://192.168.1.50:8000/v1
+OPENAI_COMPATIBLE_API_KEY=EMPTY
+OPENAI_COMPATIBLE_MODEL=Qwen/Qwen2.5-72B-Instruct
+```
+
+**Görsel üretimi** (sunumlara görsel; isteğe bağlı):
+
+```bash
+GEMINI_ENABLED=true
+IMAGE_OPENAI_COMPATIBLE_BASE_URL=https://nano-gpt.com/api/v1   # anahtar OPENAI_COMPATIBLE_API_KEY'den alınır
+IMAGE_API_STYLE=images                                          # /images/generations (FLUX, Seedream, GPT Image…)
+GEMINI_IMAGE_MODEL=blackforestlabs/flux-3/klein/text-to-image
+IMAGE_PRICE_PER_IMAGE=0.008
+```
+
+**Notlar:**
+- Kendi sunucunuzda en az 70B sınıfı, araç çağırması güçlü bir model kullanın; 27B sınıfı modeller Excel, sunum ve birleştirmede başarısız oldu.
+- Model betik üretemezse kullanıcı yığın izi yerine ne yapacağını söyleyen bir mesaj görür; ayrıntılar uygulama günlüğüne yazılır.
+
+## Kaynaktan çalıştırma ve testler (geliştirici)
+
+**Gerekenler:**
+- Java 21 ve Maven
+- Node **24** ve `npm`
+- PostgreSQL 16
+- Belge betiklerini yalıtan `bubblewrap`, `prlimit` ve DejaVu fontları (ayrıntı: [docs/node-sandbox.md](docs/node-sandbox.md))
+- ONLYOFFICE yalnızca tarayıcıda düzenleme ve sunum incelemesi için gerekir.
+
+```bash
+docker run -d --name om-db -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_DB=officemanipulator -e POSTGRES_USER=app -e POSTGRES_PASSWORD=<parola> postgres:16
+npm ci --ignore-scripts
+mvn -B package                  # testlerle birlikte derler
+set -a; . ./.env; set +a        # yukarıdaki sağlayıcı ayarları
+SERVER_PORT=8090 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/officemanipulator \
+SPRING_DATASOURCE_USERNAME=app SPRING_DATASOURCE_PASSWORD=<parola> \
+java -jar target/office-manipulator-1.0.0-SNAPSHOT.jar
+```
+
+Uygulama http://localhost:8090 adresinde açılır. Veritabanı şeması ilk açılışta Flyway ile kurulur.
+
+**Testler:**
+- `mvn -B test` yaklaşık 190 birim/entegrasyon testi çalıştırır ve yapay zekâ çağırmaz.
+- Gerçek modellerle uçtan uca karşılaştırma için `scripts/benchmark.py` kullanın (bkz. [Yeniden çalıştırma](#yeniden-çalıştırma)).
+
+**Bu sürümde yapılan ve test edilenler:**
+- **OpenAI-uyumlu sağlayıcı:** vLLM, Ollama ve NanoGPT ile gerçek sunucuda denendi. Sunucu adresi Ayarlar'dan girilebiliyor.
+- **Şablonu koruyan AI düzenleme:**
+  - Küçük değişiklik yalnızca ilgili metni değiştirir; stiller ve şablon korunur (`editMode=TEMPLATE`).
+  - Bölüm ekleme gibi yapısal bir değişiklik yeni belge üretir (`NEW_DOCUMENT`); önceki sürüm geçmişte kalır.
+- **Birden çok belgeden bilgi kaybı olmadan tek belge:**
+  - Kaynaklardaki tarih, isim ve tutarlar kontrol edilir; eksik kalırsa bir kez yeniden yazdırılır.
+  - Stok, adet ve bütçe sütunları ile kategori bazında toplamlar uygulama tarafından hesaplanıp modele verilir.
+- **Kullanıcı gözüyle test sonrası düzeltmeler:**
+  - Hata mesajları anlaşılır hâle getirildi.
+  - Fiyatı tanımsız modellerde maliyet artık "ücret hesaplanmadı" olarak görünüyor.
+  - Biten işler kenar çubuğunda kalıyor.
+- **Görsel üretimi:** `/images/generations` uç noktası destekleniyor; görsel başına ücretlendirme yapılıyor.
+- **Model karşılaştırması:** 10 metin ve 7 görsel model ölçüldü.
+
 ## Ortam değişkenleri (`.env`)
 
 | Değişken | Açıklama | Ne yapmalısınız |
