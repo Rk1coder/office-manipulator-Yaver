@@ -557,7 +557,7 @@ body{margin:0}
         </sc-if>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px 12px 14px">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <input ref="{{ chatFileRef }}" type="file" multiple sc-camel-on-change="{{ onFileSelected }}" style="display:none" accept=".docx,.pptx,.xlsx,.csv,.pdf,.odt,.ods,.odp,.doc,.txt">
+            <input ref="{{ chatFileRef }}" type="file" multiple="{{ true }}" sc-camel-on-change="{{ onFileSelected }}" style="display:none" accept=".docx,.pptx,.xlsx,.csv,.pdf,.odt,.ods,.odp,.doc,.txt">
             <button sc-camel-on-click="{{ attachFile }}" style="border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;cursor:pointer" style-hover="border-color:var(--ln2)">{{ attachLabel }}</button>
             <button sc-camel-on-click="{{ toggleSource }}" style="border:1px solid var(--ln);background:{{ sourceBtnBg }};color:var(--tx);border-radius:7px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;cursor:pointer" style-hover="border-color:var(--ln2)">{{ sourceBtnLabel }}</button>
             <div style="display:flex;border:1px solid var(--ln);border-radius:7px;overflow:hidden">
@@ -1200,7 +1200,7 @@ body{margin:0}
           </div>
           <div style="height:1px;background:var(--ln)"></div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            <label style="font-size:12.5px;font-weight:600">Gemini API key <span style="color:var(--mu);font-weight:400">(görsel üretim, opsiyonel)</span></label>
+            <label style="font-size:12.5px;font-weight:600">{{ settingsImageKeyLabel }} <span style="color:var(--mu);font-weight:400">{{ settingsImageKeyHint }}</span></label>
             <input type="password" value="{{ settingsGeminiKeyInput }}" sc-camel-on-change="{{ onSettingsGeminiKey }}" placeholder="{{ settingsGeminiKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
             <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:2px">
               <input type="checkbox" checked="{{ settingsGeminiEnabledInput }}" sc-camel-on-change="{{ onSettingsGeminiEnabled }}"> {{ settingsGeminiEnableLabel }}
@@ -1341,7 +1341,7 @@ const T = {
   tr: {
     lpEyebrow: 'BELGE ÜRETİM MOTORU', lpTitleA: 'Metni yaz.', lpTitleB: '', lpTitleC: 'dosyan hazır.', lpSub: 'Yaver doğal dildeki isteğini Word, PowerPoint, PDF veya CSV dosyasına çevirir, dosyayı yeniden açıp kontrol eder ve 24 saat indirilebilir tutar.',
     lpStart: 'Başla', lpOpen: 'Uygulamayı aç', lpHome: 'Ana sayfa',
-    lpSteps: [['İste', 'Ne istediğini düz bir cümleyle yaz, istersen kaynak metin ekle.'], ['Yapılandır', 'Claude biçimi ve kapsamı belirler, başlık, slayt veya satırları kurar.'], ['Doğrula, indir', 'Dosya yeniden açılıp kontrol edilir, sonra indirmeye hazırdır.']],
+    lpSteps: [['İste', 'Ne istediğini düz bir cümleyle yaz, istersen kaynak metin ekle.'], ['Yapılandır', 'Yaver biçimi ve kapsamı belirler, başlık, slayt veya satırları kurar.'], ['Doğrula, indir', 'Dosya yeniden açılıp kontrol edilir, sonra indirmeye hazırdır.']],
     title: 'Ne hazırlayalım?', sub: 'İsteğini doğal dille yaz. Yaver biçimi ve kapsamı anlar, dosyayı üretir, açıp doğrular ve indirmeye hazırlar.',
     placeholder: 'Örn. Ekteki makaleden 2 sayfalık PDF rapor hazırla', sourceLabel: 'KAYNAK METİN · kullanıcı mesajı olarak iletilir', remove: 'kaldır',
     sourcePh: 'Makale, toplantı notu veya tabloyu buraya yapıştır…', addSource: '+ Kaynak', auto: 'Otomatik',
@@ -1352,7 +1352,7 @@ const T = {
     because: 'çünkü', defaultPick: 'varsayılan', manual: 'elle seçildi', langTr: 'Türkçe', langEn: 'İngilizce', none: 'yok',
     overLimit: n => n + ' sınırını aşıyor, Claude daraltma önerecek',
     steps: ['Sırada', 'İşleniyor', 'Doğrulanıyor', 'Hazır'],
-    stepDesc: ['İş oluşturuldu, bütçe kontrol edildi', 'Claude içeriği yapılandırıp dosyayı yazıyor', 'Dosya yeniden açılıp kontrol ediliyor', 'İndirilebilir · 24 saat saklanır'],
+    stepDesc: ['İş oluşturuldu, bütçe kontrol edildi', 'Yaver içeriği yapılandırıp dosyayı yazıyor', 'Dosya yeniden açılıp kontrol ediliyor', 'İndirilebilir · 24 saat saklanır'],
     status: { PENDING: 'Sırada', PLANNING: 'Plan oluşturuluyor', PLAN_READY: 'Plan hazır', QUEUED: 'Onaylandı · sırada', PREPARING: 'Görseller hazırlanıyor', PROCESSING: 'İşleniyor', VALIDATING: 'Doğrulanıyor', DONE: 'Hazır', FAILED: 'Başarısız', CANCELLED: 'İptal edildi', EXPIRED: 'Süresi doldu' },
     planTitle: 'İçerik planı', planApprove: 'Onayla ve Oluştur', planWorking: 'Oluşturuluyor…', planSlide: 'Slayt', planSection: 'Bölüm', planImage: 'görsel üretilecek', planPalette: 'Renk paleti',
     cancelAction: 'İptal et', cancelling: 'İptal ediliyor…', cancelledToast: 'İşlem iptal edildi.',
@@ -1366,7 +1366,7 @@ const T = {
     narrowRetry: 'Kapsamı daraltıp dene', retry: 'Aynen tekrar dene', edit: 'İsteği düzenle', narrowSuffix: ' (daha kısa ve sade tut)',
     openPreview: 'Önizle', fullscreen: 'tam ekran ↗', originAi: 'AI ile üretildi', originSrc: 'Kaynak metinden', notes: 'KONUŞMACI NOTU', page: 'Sayfa',
     fromSource: kb => 'Bu belge yapıştırdığın ' + kb + ' KB kaynak metinden üretildi; içerik kaynaktaki bilgilere dayanır.', csvShown: (a, b) => a + ' / ' + b + ' satır gösteriliyor · ayraç ";" · UTF-8 BOM',
-    preview: 'Önizleme', structuring: 'Claude yapıyı oluşturuyor…', noPreview: 'Doğrulanamayan dosya için önizleme gösterilmez.',
+    preview: 'Önizleme', structuring: 'Yaver yapıyı oluşturuyor…', noPreview: 'Doğrulanamayan dosya için önizleme gösterilmez.',
     historyEmpty: 'Henüz dosya yok', historyEmptyBody: 'Oluşturduğun dosyalar burada listelenir ve 24 saat indirilebilir.',
     today: 'BUGÜN', earlier: 'DAHA ÖNCE', light: 'Açık', dark: 'Koyu', downloading: 'indiriliyor…', rowsMore: n => '… ve ' + n + ' satır daha',
     ago: m => m < 1 ? 'az önce' : m < 60 ? m + ' dk' : m < 1440 ? Math.round(m / 60) + ' sa' : 'dün',
@@ -1382,7 +1382,7 @@ const T = {
   en: {
     lpEyebrow: 'DOCUMENT GENERATION ENGINE', lpTitleA: 'Write the request.', lpTitleB: 'Your', lpTitleC: 'file is ready.', lpSub: 'Yaver turns a plain-language request into a Word, PowerPoint, PDF or CSV file, reopens it to check the structure, and keeps it downloadable for 24 hours.',
     lpStart: 'Start', lpOpen: 'Open app', lpHome: 'Home',
-    lpSteps: [['Ask', 'Describe what you need in one sentence, optionally with source text.'], ['Structure', 'Claude picks format and scope, then builds headings, slides or rows.'], ['Validate, download', 'The file is reopened and checked, then it is ready to download.']],
+    lpSteps: [['Ask', 'Describe what you need in one sentence, optionally with source text.'], ['Structure', 'Yaver picks format and scope, then builds headings, slides or rows.'], ['Validate, download', 'The file is reopened and checked, then it is ready to download.']],
     title: 'What should we prepare?', sub: 'Describe it in plain language. Yaver works out the format and scope, builds the file, reopens it to validate, and gets it ready to download.',
     placeholder: 'e.g. Turn the attached article into a 2-page PDF report', sourceLabel: 'SOURCE TEXT · sent as a user message', remove: 'remove',
     sourcePh: 'Paste an article, meeting notes or a table here…', addSource: '+ Source', auto: 'Auto',
@@ -1393,7 +1393,7 @@ const T = {
     because: 'from', defaultPick: 'default', manual: 'chosen manually', langTr: 'Turkish', langEn: 'English', none: 'none',
     overLimit: n => 'exceeds ' + n + ', Claude will suggest narrowing',
     steps: ['Queued', 'Processing', 'Validating', 'Ready'],
-    stepDesc: ['Job created, budget checked', 'Claude structures the content and writes the file', 'Reopening the file to verify it', 'Downloadable · kept for 24 hours'],
+    stepDesc: ['Job created, budget checked', 'Yaver structures the content and writes the file', 'Reopening the file to verify it', 'Downloadable · kept for 24 hours'],
     status: { PENDING: 'Queued', PLANNING: 'Planning', PLAN_READY: 'Plan ready', QUEUED: 'Confirmed · queued', PREPARING: 'Preparing images', PROCESSING: 'Processing', VALIDATING: 'Validating', DONE: 'Ready', FAILED: 'Failed', CANCELLED: 'Cancelled', EXPIRED: 'Expired' },
     planTitle: 'Content plan', planApprove: 'Approve & generate', planWorking: 'Generating…', planSlide: 'Slide', planSection: 'Section', planImage: 'image will be generated', planPalette: 'Color palette',
     cancelAction: 'Cancel', cancelling: 'Cancelling…', cancelledToast: 'Job cancelled.',
@@ -1407,7 +1407,7 @@ const T = {
     narrowRetry: 'Narrow scope and retry', retry: 'Retry as is', edit: 'Edit request', narrowSuffix: ' (keep it shorter and simpler)',
     openPreview: 'Preview', fullscreen: 'full screen ↗', originAi: 'Generated by AI', originSrc: 'From source text', notes: 'SPEAKER NOTES', page: 'Page',
     fromSource: kb => 'This document was generated from the ' + kb + ' KB source text you pasted; its content is based on that text.', csvShown: (a, b) => 'showing ' + a + ' of ' + b + ' rows · delimiter ";" · UTF-8 BOM',
-    preview: 'Preview', structuring: 'Claude is building the structure…', noPreview: 'No preview for a file that failed validation.',
+    preview: 'Preview', structuring: 'Yaver is building the structure…', noPreview: 'No preview for a file that failed validation.',
     historyEmpty: 'No files yet', historyEmptyBody: 'Files you create are listed here and stay downloadable for 24 hours.',
     today: 'TODAY', earlier: 'EARLIER', light: 'Light', dark: 'Dark', downloading: 'downloading…', rowsMore: n => '… and ' + n + ' more rows',
     ago: m => m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : 'yesterday',
@@ -1440,7 +1440,7 @@ const SLIDES = {
 const CSV = { cols: ['sku', 'urun', 'kategori', 'fiyat', 'stok', 'tedarikci'], rows: [['A-1042', 'Çelik vida M6', 'Bağlantı', '2,40', '1 250', 'Öztürk Ltd.'], ['A-1043', 'Somun M6', 'Bağlantı', '0,85', '3 900', 'Öztürk Ltd.'], ['B-2201', 'Kablo kanalı 2m', 'Elektrik', '46,00', '310', 'Ege Elektrik'], ['B-2208', 'Sigorta 16A', 'Elektrik', '38,50', '128', 'Ege Elektrik'], ['C-0310', 'Silikon şeffaf', 'Yapı kimyasalı', '92,90', '76', 'Kuzey Yapı']] };
 const ORDER = ['PENDING', 'PLANNING', 'PLAN_READY', 'QUEUED', 'PREPARING', 'PROCESSING', 'VALIDATING', 'DONE'];
 const SEED = [];
-const FMT_RX_EXPLICIT = [['PPTX', /\b(pptx|powerpoint|sunum|slayt|presentation|slides?|deck|ppt)\b/i], ['DOCX', /\b(docx|word|tutanak|dilekçe)\b/i], ['PDF', /\bpdf\b/i], ['XLSX', /\b(xlsx|excel)\b/i], ['CSV', /\bcsv\b/i]];
+const FMT_RX_EXPLICIT = [['PPTX', /\b(pptx|powerpoint|presentation|slides?|deck|ppt)\b|\b(sunum|slayt)/i], ['DOCX', /\b(docx|word)\b|\b(tutana|dilekç)/i], ['PDF', /\bpdf\b/i], ['XLSX', /\b(xlsx|excel)\b/i], ['CSV', /\bcsv\b/i]];
 const FMT_RX_FALLBACK = [['XLSX', /hesap tablosu|hesap|spreadsheet|exceljs/i], ['CSV', /tablo|liste|table/i], ['DOCX', /belge|minutes|letter|document/i], ['PDF', /rapor|report|özet|summary/i]];
 const hex = n => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 const W = ['92%', '78%', '86%', '64%', '88%', '70%', '82%', '58%'];
@@ -1646,7 +1646,13 @@ class Component extends DCLogic {
       cost: job.cost == null ? '' : String(job.cost).startsWith('$') ? String(job.cost) : '$' + Number(job.cost).toFixed(4),
       until: job.expiresAt ? new Date(job.expiresAt).getTime() : null,
       expired: !!job.expiresAt && new Date(job.expiresAt).getTime() < Date.now(),
-      t0: job.createdAt ? new Date(job.createdAt).getTime() : Date.now() };
+      t0: job.createdAt ? new Date(job.createdAt).getTime() : Date.now(),
+      ...(job.editMode ? { reason: this.editModeLabel(job.editMode) } : {}) };
+  }
+  editModeLabel(mode) {
+    const tr = this.L() === 'tr';
+    return mode === 'TEMPLATE' ? (tr ? 'Şablon korunarak düzenlendi' : 'Edited, template kept')
+      : (tr ? 'Yapı değiştiği için yeni belge oluşturuldu' : 'New document, the structure changed');
   }
   confirmPlan() {
     const s = this.state, epoch = this.epoch;
@@ -1810,11 +1816,12 @@ class Component extends DCLogic {
           { h: 'Sürümler ve geçmiş', p: 'Her kayıt yeni bir sürüm oluşturur; istersen eski sürüme dönebilirsin. Önceki işlerin sol menüdeki listede durur ve tıklayarak yeniden açılabilir. Dosyalar sunucu yöneticisinin belirlediği süre boyunca saklanır.' }
         ] },
       { id: 'llm', eyebrow: 'SEÇİM', title: 'Hangi yapay zekâyı seçmeliyim?', go: 'Sağlayıcını ve modelini Ayarlar → AI\'dan seç', action: 'settings',
-        desc: 'Üç sağlayıcı desteklenir. Hepsi tüm dosya türlerini üretir ama güçlü oldukları alanlar farklıdır.',
+        desc: 'Dört sağlayıcı desteklenir. Hepsi tüm dosya türlerini üretir ama güçlü oldukları alanlar farklıdır.',
         sections: [
           { h: 'Claude (Anthropic)', p: 'Tasarım kurallarına en iyi uyan ve kendi çıktısını en iyi denetleyen seçenek. Özenli sunumlar, uzun raporlar ve karmaşık belgeler için önerilir.' },
           { h: 'Gemini (Google)', p: 'Tüm belge türlerini üretir. Aynı anahtarla sunumlara yapay zekâ ile görsel de eklenebilir; bunun için Ayarlar → Görseller sekmesinden açılması gerekir.' },
           { h: 'GPT (OpenAI)', p: 'Metin, tablo, özet ve rapor gibi genel işler için uygundur. Bu uygulamada OpenAI ile görsel üretimi yapılmaz.' },
+          { h: 'OpenAI-uyumlu (vLLM, Ollama, OpenRouter…)', p: 'Kendi sunucunuzdaki açık modeller (vLLM, Ollama) veya OpenRouter gibi servisler. Sunucu adresini yönetici .env dosyasında tanımlar. Görsel okuyamayan bir model seçildiyse slaytları kontrol etmek için ayrı bir görsel model tanımlanabilir.' },
           { h: 'Model nedir?', p: 'Her sağlayıcının farklı boyutta modelleri vardır. Büyük modeller daha kaliteli sonuç verir ama daha pahalı ve yavaştır; küçük modeller hızlı ve ucuzdur. Emin değilsen listede önerilen modeli kullan.' }
         ] },
       { id: 'cost', eyebrow: 'MALİYET', title: 'Ücret ve bütçe nasıl işler?', go: 'Sol alttaki bütçe göstergesini takip et', action: 'detail',
@@ -1872,11 +1879,12 @@ class Component extends DCLogic {
           { h: 'Versions and history', p: 'Every save creates a new version you can return to. Earlier jobs stay in the list on the left and can be reopened with a click. Files are kept for the period set by the server administrator.' }
         ] },
       { id: 'llm', eyebrow: 'CHOICE', title: 'Which AI should I choose?', go: 'Pick your provider and model in Settings → AI', action: 'settings',
-        desc: 'Three providers are supported. All of them produce every file type, but their strengths differ.',
+        desc: 'Four providers are supported. All of them produce every file type, but their strengths differ.',
         sections: [
           { h: 'Claude (Anthropic)', p: 'Follows the design rules and checks its own output most closely. Recommended for polished decks, long reports and complex documents.' },
           { h: 'Gemini (Google)', p: 'Produces every document type. With the same key it can also add AI-generated images to decks; enable this under Settings → Images.' },
           { h: 'GPT (OpenAI)', p: 'Good for general work such as text, tables, summaries and reports. Image generation with OpenAI is not available in this app.' },
+          { h: 'OpenAI-compatible (vLLM, Ollama, OpenRouter…)', p: 'Open models on your own server (vLLM, Ollama) or services such as OpenRouter. The administrator sets the server address in .env. If the chosen model cannot read images, a separate vision model can be set to check the slides.' },
           { h: 'What is a model?', p: 'Each provider offers models of different sizes. Larger models give better results but cost more and are slower; smaller ones are fast and cheap. If unsure, use the suggested model in the list.' }
         ] },
       { id: 'cost', eyebrow: 'COST', title: 'How do cost and budget work?', go: 'Keep an eye on the budget meter in the bottom-left', action: 'detail',
@@ -1917,12 +1925,12 @@ class Component extends DCLogic {
     return tr ? [
       { title: 'Yaver\'e hoş geldiniz', body: 'Üstteki mesaj kutusuna ne tür bir belge istediğinizi yazın — Word, PowerPoint, PDF, Excel, CSV ve daha fazlası.' },
       { title: 'Format seçin', body: 'Format listesinden çıktı türünü seçebilir, ya da "Otomatik" bırakıp Yaver\'in isteğinize göre seçmesine izin verebilirsiniz.' },
-      { title: 'API anahtarınızı girin', body: 'Belge üretebilmek için sol alttaki "⚙ Ayarlar" bölümünden kendi Claude API anahtarınızı eklemeniz gerekir. En iyi performans için Claude önerilir.' },
+      { title: 'API anahtarınızı girin', body: 'Belge üretebilmek için sol alttaki "⚙ Ayarlar" bölümünden bir yapay zekâ sağlayıcısının API anahtarını eklemeniz gerekir. En iyi performans için Claude önerilir.' },
       { title: 'Belgeyi düzenleyin', body: 'Belge hazır olduğunda "Belgeyi düzenle" ile açıp, sağda açılan Yaver panelinden AI\'a seçili metni düzenletebilirsiniz.' }
     ] : [
       { title: 'Welcome to Yaver', body: 'Type what kind of document you want in the message box above — Word, PowerPoint, PDF, Excel, CSV and more.' },
       { title: 'Pick a format', body: 'Choose an output format from the list, or leave it on "Auto" and let Yaver pick based on your request.' },
-      { title: 'Add your API key', body: 'To generate documents you need to add your own Claude API key from "⚙ Settings" in the bottom-left. Claude is recommended for the best performance.' },
+      { title: 'Add your API key', body: 'To generate documents you need to add an API key for an AI provider from "⚙ Settings" in the bottom-left. Claude is recommended for the best performance.' },
       { title: 'Edit your document', body: 'Once a document is ready, open "Edit document" and use the Document Assistant panel on the right to have the AI edit the selected text.' }
     ];
   }
@@ -2232,7 +2240,8 @@ class Component extends DCLogic {
     this.clear();
     const epoch = this.epoch, t0 = Date.now();
     const at = () => '+' + ((Date.now() - t0) / 1000).toFixed(1) + 's';
-    const fmt = s.format === 'AUTO' ? null : s.format;
+    // Otomatik: only an explicitly named format ("sunuma dönüştür") is sent; otherwise the uploaded file's format is kept.
+    const fmt = s.format !== 'AUTO' ? s.format : (FMT_RX_EXPLICIT.find(([, rx]) => rx.test(request)) || [null])[0];
     this.setState({ converting: false, cancelling: false, realView: false, realPages: 0, realPage: 0, previewData: null, previewJobId: null, previewLoading: false, planData: null, vSheet: 0, wysiwyg: { active: false, dirty: false, data: null, saving: false }, now: t0, showLogs: false, navOpen: false, viewer: false, vSlide: 0, edits: {}, chat: [], sel: [], agentBusy: false, versions: [], attachedFile: null, attachedFileName: '',
       job: { id: null, format: fmt || 'AUTO', reason: this.L() === 'tr' ? 'Yüklenen belgeden' : 'From uploaded file', request, origin: 'file', srcText: '',
         status: 'PENDING', times: { PENDING: '+0.0s' }, logs: [{ t: at(), text: (this.L() === 'tr' ? 'Yükleniyor: ' : 'Uploading: ') + names }], t0, live: true } });
@@ -2266,7 +2275,7 @@ class Component extends DCLogic {
       const meta = this.jobMetadata(job), terminal = ['DONE', 'FAILED', 'CANCELLED'].includes(job.status);
       this.setState({ navOpen: false, showLogs: false, now: Date.now(),
         versions: versions || [{ id: jobId, label: this.L() === 'tr' ? 'orijinal' : 'original', t0: meta.t0 }],
-        job: { ...meta, id: jobId, reason: '', origin: 'ai', srcText: '', times: {}, logs: job.error ? [{ t: '', text: job.error, kind: 'err' }] : [], live: !terminal } });
+        job: { ...meta, id: jobId, reason: meta.reason || '', origin: 'ai', srcText: '', times: {}, logs: job.error ? [{ t: '', text: job.error, kind: 'err' }] : [], live: !terminal } });
       try { localStorage.setItem('yv_lastJob', jobId); } catch (e) {}
       if (job.status === 'DONE') this.fetchPreview(jobId);
       else if (!terminal) {
@@ -2861,7 +2870,12 @@ class Component extends DCLogic {
       settingsTabAiTitle: L === 'tr' ? 'Yapay zekâ sağlayıcısı' : 'AI provider',
       settingsTabAiDesc: L === 'tr' ? 'Belge üretimi için kendi API anahtarınızı ve modelinizi seçin.' : 'Choose your own API key and model for document generation.',
       settingsTabImagesTitle: L === 'tr' ? 'Görsel üretim' : 'Image generation',
-      settingsTabImagesDesc: L === 'tr' ? 'Sunumlar için Gemini ile görsel üretimi (isteğe bağlı).' : 'Optional Gemini image generation for presentations.',
+      settingsTabImagesDesc: (s.settingsData && s.settingsData.imageVia)
+        ? (L === 'tr' ? 'Sunumlar için ' + s.settingsData.imageVia + ' üzerinden ' + s.settingsData.imageModel + ' ile görsel üretimi (isteğe bağlı).'
+          : 'Optional image generation for presentations with ' + s.settingsData.imageModel + ' via ' + s.settingsData.imageVia + '.')
+        : (L === 'tr' ? 'Sunumlar için Gemini ile görsel üretimi (isteğe bağlı).' : 'Optional Gemini image generation for presentations.'),
+      settingsImageKeyLabel: (s.settingsData && s.settingsData.imageVia) ? (L === 'tr' ? 'Görsel API key' : 'Image API key') : 'Gemini API key',
+      settingsImageKeyHint: L === 'tr' ? '(görsel üretim, opsiyonel)' : '(image generation, optional)',
       settingsTabLookTitle: L === 'tr' ? 'Görünüm' : 'Appearance',
       settingsTabLookDesc: L === 'tr' ? 'Tema ve arayüz dili.' : 'Theme and interface language.',
       settingsThemeTitle: L === 'tr' ? 'Tema' : 'Theme',
@@ -2973,9 +2987,12 @@ class Component extends DCLogic {
         : (L === 'tr' ? 'İsteğe bağlı — görsel üretim için' : 'Optional — for image generation'),
       settingsGeminiEnabledInput: s.settingsGeminiEnabledInput,
       onSettingsGeminiEnabled: e => this.setState({ settingsGeminiEnabledInput: e.target.checked }),
-      settingsGeminiEnableLabel: L === 'tr' ? 'Gemini görsel üretimini etkinleştir' : 'Enable Gemini image generation',
+      settingsGeminiEnableLabel: (s.settingsData && s.settingsData.imageVia) ? (L === 'tr' ? 'Görsel üretimini etkinleştir' : 'Enable image generation')
+        : (L === 'tr' ? 'Gemini görsel üretimini etkinleştir' : 'Enable Gemini image generation'),
       settingsGeminiKeyShared: !!(s.settingsData && s.settingsData.geminiKeyShared),
-      settingsGeminiSharedText: L === 'tr' ? 'Ayrı anahtar girilmedi: Yapay zekâ sekmesindeki Gemini anahtarı kullanılacak.' : 'No separate key: the Gemini key from the AI provider tab will be used.',
+      settingsGeminiSharedText: (s.settingsData && s.settingsData.imageVia)
+        ? (L === 'tr' ? 'Ayrı anahtar girilmedi: Yapay zekâ sekmesindeki OpenAI-uyumlu sunucu anahtarı kullanılacak.' : 'No separate key: the OpenAI-compatible server key from the AI provider tab will be used.')
+        : (L === 'tr' ? 'Ayrı anahtar girilmedi: Yapay zekâ sekmesindeki Gemini anahtarı kullanılacak.' : 'No separate key: the Gemini key from the AI provider tab will be used.'),
       settingsGeminiPriceLabel: L === 'tr' ? 'Görsel modeli fiyatı (USD / 1M token)' : 'Image model price (USD / 1M tokens)',
       settingsGeminiInputPriceLabel: L === 'tr' ? 'Girdi' : 'Input',
       settingsGeminiOutputPriceLabel: L === 'tr' ? 'Çıktı' : 'Output',
@@ -2983,7 +3000,9 @@ class Component extends DCLogic {
       settingsGeminiOutputPrice: s.settingsGeminiOutputPrice || '',
       onSettingsGeminiInputPrice: e => this.setState({ settingsGeminiInputPrice: e.target.value }),
       onSettingsGeminiOutputPrice: e => this.setState({ settingsGeminiOutputPrice: e.target.value }),
-      settingsGeminiPriceHint: L === 'tr' ? 'Bütçe sınırı görsel maliyetini bu fiyatlarla hesaplar. Güncel fiyatı Google AI fiyat sayfasından alın.' : 'The budget limit prices images with these rates. Take current prices from Google AI pricing.',
+      settingsGeminiPriceHint: (s.settingsData && s.settingsData.imageVia)
+        ? (L === 'tr' ? 'Bütçe sınırı görsel maliyetini bu fiyatlarla hesaplar. Güncel fiyatı ' + s.settingsData.imageVia + ' üzerindeki model sayfasından alın.' : 'The budget limit prices images with these rates. Take current prices from the model page on ' + s.settingsData.imageVia + '.')
+        : (L === 'tr' ? 'Bütçe sınırı görsel maliyetini bu fiyatlarla hesaplar. Güncel fiyatı Google AI fiyat sayfasından alın.' : 'The budget limit prices images with these rates. Take current prices from Google AI pricing.'),
       settingsGeminiNeedsPrice: !!(s.settingsData && s.settingsData.geminiEnabled && !s.settingsData.geminiPricesConfigured),
       settingsGeminiNeedsPriceText: L === 'tr' ? 'Görsel üretimi açık ama fiyat girilmemiş; fiyatlar kaydedilene kadar sunumlar görselsiz üretilir.' : 'Image generation is on but no prices are set; presentations are produced without images until prices are saved.',
       openOfficeEditor: () => {

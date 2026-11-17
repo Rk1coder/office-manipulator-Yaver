@@ -142,6 +142,8 @@ public class SettingsController {
                 geminiImageService.inputPrice().toPlainString(),
                 geminiImageService.outputPrice().toPlainString(),
                 claudeClientProvider.defaultProvider().id(),
+                geminiImageService.endpointHost(),
+                geminiImageService.model(),
                 providerModels()
         );
     }
