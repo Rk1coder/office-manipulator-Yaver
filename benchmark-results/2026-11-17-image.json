@@ -1,0 +1,153 @@
+{
+ "date": "2026-11-17",
+ "base": "https://nano-gpt.com/api/v1",
+ "results": [
+  {
+   "model": "blackforestlabs/flux-3/klein/text-to-image",
+   "usd_per_image": 0.008,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 5,
+     "file": "benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 7,
+     "file": "benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 5,
+     "file": "benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "qwen-image-2.1/text-to-image",
+   "usd_per_image": 0.02,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 9,
+     "file": "benchmark-results/images/qwen-image-2.1_text-to-image-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 8,
+     "file": "benchmark-results/images/qwen-image-2.1_text-to-image-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 9,
+     "file": "benchmark-results/images/qwen-image-2.1_text-to-image-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "seedream-v4.5",
+   "usd_per_image": 0.04,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 17,
+     "file": "benchmark-results/images/seedream-v4.5-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 15,
+     "file": "benchmark-results/images/seedream-v4.5-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 15,
+     "file": "benchmark-results/images/seedream-v4.5-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "ideogram/v4.5",
+   "usd_per_image": 0.06,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 19,
+     "file": "benchmark-results/images/ideogram_v4.5-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 14,
+     "file": "benchmark-results/images/ideogram_v4.5-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 26,
+     "file": "benchmark-results/images/ideogram_v4.5-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "nano-banana-2",
+   "usd_per_image": 0.08,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 23,
+     "file": "benchmark-results/images/nano-banana-2-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 27,
+     "file": "benchmark-results/images/nano-banana-2-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 21,
+     "file": "benchmark-results/images/nano-banana-2-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "gpt-image-1.5",
+   "usd_per_image": 0.1666,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 18,
+     "file": "benchmark-results/images/gpt-image-1.5-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 10,
+     "file": "benchmark-results/images/gpt-image-1.5-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 16,
+     "file": "benchmark-results/images/gpt-image-1.5-3.jpg"
+    }
+   ]
+  },
+  {
+   "model": "nano-banana-pro",
+   "usd_per_image": 0.14,
+   "images": [
+    {
+     "status": "DONE",
+     "seconds": 40,
+     "file": "benchmark-results/images/nano-banana-pro-1.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 24,
+     "file": "benchmark-results/images/nano-banana-pro-2.jpg"
+    },
+    {
+     "status": "DONE",
+     "seconds": 31,
+     "file": "benchmark-results/images/nano-banana-pro-3.jpg"
+    }
+   ]
+  }
+ ]
+}

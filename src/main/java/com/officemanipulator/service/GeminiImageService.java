@@ -22,7 +22,8 @@ import java.util.UUID;
  * responseModalities: ["TEXT","IMAGE"] — the "Nano Banana" family of models) for use in
  * generated documents. Disabled (returns empty) when no API key is configured.
  * With IMAGE_OPENAI_COMPATIBLE_BASE_URL set (e.g. OpenRouter), the same image models are called through
- * an OpenAI-compatible chat/completions endpoint instead ({@code modalities: ["image","text"]}).
+ * an OpenAI-compatible chat/completions endpoint instead ({@code modalities: ["image","text"]}), or with
+ * IMAGE_API_STYLE=images through its /images/generations endpoint (FLUX, Seedream, GPT Image... billed per image).
  */
 @Service
 public class GeminiImageService {
@@ -37,6 +38,11 @@ public class GeminiImageService {
     private java.math.BigDecimal envInputPrice;
     @Value("${app.gemini.output-price-per-million:0}")
     private java.math.BigDecimal envOutputPrice;
+    /** "images": the compatible endpoint's /images/generations, billed by IMAGE_PRICE_PER_IMAGE instead of tokens. */
+    @Value("${app.gemini.api-style:chat}")
+    private String apiStyle = "chat";
+    @Value("${app.gemini.price-per-image:0}")
+    private java.math.BigDecimal pricePerImage = java.math.BigDecimal.ZERO;
     /** Lets image generation reuse the Gemini key entered for the LLM provider. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.officemanipulator.config.LlmClientProvider llm;
@@ -114,8 +120,12 @@ public class GeminiImageService {
     public java.math.BigDecimal inputPrice() { return price(KEY_INPUT_PRICE, envInputPrice); }
     public java.math.BigDecimal outputPrice() { return price(KEY_OUTPUT_PRICE, envOutputPrice); }
 
-    /** The budget guard needs a positive rate per token before any paid image call. */
-    public boolean pricesConfigured() { return inputPrice().signum() > 0 && outputPrice().signum() > 0; }
+    private boolean perImage() { return !compatibleBaseUrl.isEmpty() && "images".equals(apiStyle); }
+
+    /** The budget guard needs a positive rate (per token, or per image for /images/generations) before any paid image call. */
+    public boolean pricesConfigured() {
+        return perImage() ? pricePerImage.signum() > 0 : inputPrice().signum() > 0 && outputPrice().signum() > 0;
+    }
 
     private java.math.BigDecimal price(String key, java.math.BigDecimal envDefault) {
         String stored = settings.get(key, null);
@@ -156,12 +166,30 @@ public class GeminiImageService {
         if (!index.matches("[1-9][0-9]{0,3}")) throw new IllegalArgumentException("Invalid image index");
         if (!pricesConfigured())
             throw new IllegalStateException("Configure Gemini token prices before enabling image generation");
-        UUID reservation = billing.reserve(jobId, "gemini", cost(prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 8192L, OUTPUT_TOKENS));
+        UUID reservation = billing.reserve(jobId, "gemini", perImage() ? pricePerImage
+                : cost(prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 8192L, OUTPUT_TOKENS));
         boolean settled = false;
         try {
             String base64 = null;
             int input, output;
-            if (compatibleBaseUrl.isEmpty()) {
+            java.math.BigDecimal amount = null;
+            if (perImage()) {
+                Map<String, Object> body = Map.of("model", model, "prompt", prompt, "n", 1, "response_format", "b64_json");
+                String response = restClient.post()
+                        .uri(java.net.URI.create(compatibleBaseUrl + "/images/generations"))
+                        .header("Authorization", "Bearer " + apiKey())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+                JsonNode image = objectMapper.readTree(response).path("data").path(0);
+                input = 0; output = 0; amount = pricePerImage;
+                base64 = image.path("b64_json").asText(null);
+                String url = image.path("url").asText("");
+                // Some models ignore response_format and answer with a link: only https, read with the same client.
+                if (base64 == null && url.startsWith("https://")) base64 = Base64.getEncoder().encodeToString(
+                        restClient.get().uri(java.net.URI.create(url)).retrieve().body(byte[].class));
+            } else if (compatibleBaseUrl.isEmpty()) {
                 Map<String, Object> body = Map.of(
                         "contents", java.util.List.of(
                                 Map.of("parts", java.util.List.of(Map.of("text", prompt)))
@@ -214,7 +242,7 @@ public class GeminiImageService {
                 String url = root.path("choices").path(0).path("message").path("images").path(0).path("image_url").path("url").asText("");
                 if (url.startsWith("data:image/") && url.contains(";base64,")) base64 = url.substring(url.indexOf(";base64,") + 8);
             }
-            var amount = cost(input, output);
+            if (amount == null) amount = cost(input, output);
             billing.settle(reservation, amount, input, output);
             settled = true;
             jobs.addUsage(jobId, input, output, amount);
@@ -222,7 +250,7 @@ public class GeminiImageService {
                 throw new IllegalStateException("Gemini returned no image for section " + index);
             }
 
-            byte[] imageBytes = Base64.getDecoder().decode(base64);
+            byte[] imageBytes = asPng(Base64.getDecoder().decode(base64));
             Path jobDir = storageService.resolveJobDir(jobId);
             Files.createDirectories(jobDir);
             Path imagePath = jobDir.resolve("img_" + index + ".png");
@@ -235,6 +263,16 @@ public class GeminiImageService {
             throw new IllegalStateException("Image generation failed for section " + index + ": " + e.getMessage(), e);
         }
     }
+    /** Documents embed img_N.png as PNG; JPEG answers (common on /images/generations) are converted. */
+    static byte[] asPng(byte[] bytes) throws IOException {
+        if (bytes.length >= 4 && (bytes[0] & 0xff) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') return bytes;
+        var image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes));
+        if (image == null) throw new IOException("Unsupported image format (PNG or JPEG expected)");
+        var out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
     private java.math.BigDecimal cost(long input, long output) {
         return inputPrice().multiply(java.math.BigDecimal.valueOf(input))
             .add(outputPrice().multiply(java.math.BigDecimal.valueOf(output)))

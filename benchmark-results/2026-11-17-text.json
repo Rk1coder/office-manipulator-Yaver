@@ -1,0 +1,650 @@
+{
+ "date": "2026-11-17",
+ "base": "https://nano-gpt.com/api/v1",
+ "results": [
+  {
+   "model": "deepseek/deepseek-v4.1-flash",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 20,
+     "tokens_in": 7120,
+     "tokens_out": 1305,
+     "usd": 0.0008,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 84,
+     "tokens_in": 11417,
+     "tokens_out": 9380,
+     "usd": 0.0042,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 4,
+     "tokens_in": 4983,
+     "tokens_out": 140,
+     "usd": 0.0002,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "FAILED",
+     "seconds": 368,
+     "tokens_in": 95279,
+     "tokens_out": 44370,
+     "usd": 0.0214,
+     "error": "Seçili model çalışan bir belge üretemedi (4 deneme). Daha güçlü bir model seçin ya da isteği sadeleştirip tekrar deneyin.",
+     "ok": false
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 160,
+     "tokens_in": 20415,
+     "tokens_out": 18246,
+     "usd": 0.0081,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 292,
+     "tokens_in": 53683,
+     "tokens_out": 31208,
+     "usd": 0.0146,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "qwen/qwen3.8-27b",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 16,
+     "tokens_in": 6829,
+     "tokens_out": 1205,
+     "usd": 0.0019,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 60,
+     "tokens_in": 8475,
+     "tokens_out": 6407,
+     "usd": 0.0058,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 4,
+     "tokens_in": 2774,
+     "tokens_out": 105,
+     "usd": 0.0005,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "FAILED",
+     "seconds": 208,
+     "tokens_in": 91274,
+     "tokens_out": 31527,
+     "usd": 0.0358,
+     "error": "Seçili model çalışan bir belge üretemedi (4 deneme). Daha güçlü bir model seçin ya da isteği sadeleştirip tekrar deneyin.",
+     "ok": false
+    },
+    "pptx": {
+     "status": "FAILED",
+     "seconds": 372,
+     "tokens_in": 116839,
+     "tokens_out": 36053,
+     "usd": 0.0428,
+     "error": "Seçili model çalışan bir belge üretemedi (4 deneme). Daha güçlü bir model seçin ya da isteği sadeleştirip tekrar deneyin.",
+     "ok": false
+    },
+    "merge": {
+     "status": "FAILED",
+     "seconds": 148,
+     "tokens_in": 87221,
+     "tokens_out": 17891,
+     "usd": 0.0256,
+     "error": "Seçili model çalışan bir belge üretemedi (4 deneme). Daha güçlü bir model seçin ya da isteği sadeleştirip tekrar deneyin.",
+     "ok": false
+    }
+   }
+  },
+  {
+   "model": "moonshotai/kimi-k2.6",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 52,
+     "tokens_in": 6977,
+     "tokens_out": 1720,
+     "usd": 0.008,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 577,
+     "tokens_in": 12417,
+     "tokens_out": 16311,
+     "usd": 0.0486,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 8,
+     "tokens_in": 6606,
+     "tokens_out": 62,
+     "usd": 0.0035,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 268,
+     "tokens_in": 8805,
+     "tokens_out": 8468,
+     "usd": 0.0264,
+     "error": "",
+     "ok": true,
+     "note": "6 sayfa, 202 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 805,
+     "tokens_in": 39983,
+     "tokens_out": 22047,
+     "usd": 0.0773,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 1461,
+     "tokens_in": 39163,
+     "tokens_out": 27172,
+     "usd": 0.0902,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "z-ai/glm-5.3",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 24,
+     "tokens_in": 6427,
+     "tokens_out": 1145,
+     "usd": 0.0051,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 60,
+     "tokens_in": 9201,
+     "tokens_out": 5648,
+     "usd": 0.0117,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 32,
+     "tokens_in": 2567,
+     "tokens_out": 75,
+     "usd": 0.0016,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 48,
+     "tokens_in": 7672,
+     "tokens_out": 2891,
+     "usd": 0.0078,
+     "error": "",
+     "ok": true,
+     "note": "4 sayfa, 131 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 84,
+     "tokens_in": 16445,
+     "tokens_out": 9080,
+     "usd": 0.0199,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 212,
+     "tokens_in": 57785,
+     "tokens_out": 18153,
+     "usd": 0.0546,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "openai/gpt-6.1-terra",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 40,
+     "tokens_in": 6393,
+     "tokens_out": 1373,
+     "usd": 0.0133,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 32,
+     "tokens_in": 7995,
+     "tokens_out": 3623,
+     "usd": 0.0261,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 4,
+     "tokens_in": 2030,
+     "tokens_out": 56,
+     "usd": 0.0023,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 16,
+     "tokens_in": 7432,
+     "tokens_out": 2056,
+     "usd": 0.0177,
+     "error": "",
+     "ok": true,
+     "note": "1 sayfa, 88 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 72,
+     "tokens_in": 15563,
+     "tokens_out": 7428,
+     "usd": 0.0527,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 96,
+     "tokens_in": 34509,
+     "tokens_out": 11893,
+     "usd": 0.094,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "openai/gpt-6-sol",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 20,
+     "tokens_in": 6535,
+     "tokens_out": 1503,
+     "usd": 0.0281,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 40,
+     "tokens_in": 7946,
+     "tokens_out": 4621,
+     "usd": 0.0621,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 4,
+     "tokens_in": 1913,
+     "tokens_out": 57,
+     "usd": 0.0044,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 28,
+     "tokens_in": 7418,
+     "tokens_out": 2914,
+     "usd": 0.044,
+     "error": "",
+     "ok": true,
+     "note": "1 sayfa, 87 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 76,
+     "tokens_in": 16214,
+     "tokens_out": 9184,
+     "usd": 0.1243,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 80,
+     "tokens_in": 32316,
+     "tokens_out": 11521,
+     "usd": 0.1798,
+     "error": "",
+     "ok": true,
+     "note": "olgu %96, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "anthropic/claude-sonnet-5.5",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 40,
+     "tokens_in": 11592,
+     "tokens_out": 4158,
+     "usd": 0.0648,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 112,
+     "tokens_in": 16200,
+     "tokens_out": 13973,
+     "usd": 0.1721,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 4,
+     "tokens_in": 6562,
+     "tokens_out": 192,
+     "usd": 0.015,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 88,
+     "tokens_in": 18545,
+     "tokens_out": 12270,
+     "usd": 0.1598,
+     "error": "",
+     "ok": true,
+     "note": "3 sayfa, 186 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 124,
+     "tokens_in": 27617,
+     "tokens_out": 16058,
+     "usd": 0.2158,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 204,
+     "tokens_in": 74444,
+     "tokens_out": 28718,
+     "usd": 0.4361,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "anthropic/claude-opus-5.5",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 56,
+     "tokens_in": 11725,
+     "tokens_out": 4897,
+     "usd": 0.1448,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 176,
+     "tokens_in": 18673,
+     "tokens_out": 20335,
+     "usd": 0.4814,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 8,
+     "tokens_in": 9489,
+     "tokens_out": 177,
+     "usd": 0.0415,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 132,
+     "tokens_in": 15209,
+     "tokens_out": 15271,
+     "usd": 0.3663,
+     "error": "",
+     "ok": true,
+     "note": "3 sayfa, 266 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 360,
+     "tokens_in": 29328,
+     "tokens_out": 39066,
+     "usd": 0.8986,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 296,
+     "tokens_in": 67714,
+     "tokens_out": 35747,
+     "usd": 0.9858,
+     "error": "",
+     "ok": true,
+     "note": "olgu %100, toplam stok doğru"
+    }
+   }
+  },
+  {
+   "model": "google/gemini-3.8-flash",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 56,
+     "tokens_in": 7214,
+     "tokens_out": 7428,
+     "usd": 0.0333,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 200,
+     "tokens_in": 9369,
+     "tokens_out": 29073,
+     "usd": 0.1161,
+     "error": "",
+     "ok": true,
+     "note": "6/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 8,
+     "tokens_in": 3675,
+     "tokens_out": 431,
+     "usd": 0.0044,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "FAILED",
+     "seconds": 140,
+     "tokens_in": 1311,
+     "tokens_out": 2004,
+     "usd": 0.0085,
+     "error": "OpenAI-uyumlu sunucu isteği başarısız (HTTP 503): All routes failed before completion. This failed request was not counted toward subscription input quota. Please try again later.",
+     "ok": false
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 312,
+     "tokens_in": 17388,
+     "tokens_out": 53320,
+     "usd": 0.213,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "FAILED",
+     "seconds": 216,
+     "tokens_in": 5685,
+     "tokens_out": 8468,
+     "usd": 0.036,
+     "error": "OpenAI-uyumlu sunucu isteği başarısız (HTTP 503): All routes failed before completion. This failed request was not counted toward subscription input quota. Please try again later.",
+     "ok": false
+    }
+   }
+  },
+  {
+   "model": "google/gemini-3.1-pro-preview",
+   "tasks": {
+    "csv": {
+     "status": "DONE",
+     "seconds": 60,
+     "tokens_in": 6961,
+     "tokens_out": 5607,
+     "usd": 0.0812,
+     "error": "",
+     "ok": true,
+     "note": "25 satır, 6 sütun"
+    },
+    "docx": {
+     "status": "DONE",
+     "seconds": 124,
+     "tokens_in": 8134,
+     "tokens_out": 12488,
+     "usd": 0.1661,
+     "error": "",
+     "ok": false,
+     "note": "5/6 bölüm, tablo var"
+    },
+    "edit": {
+     "status": "DONE",
+     "seconds": 8,
+     "tokens_in": 1934,
+     "tokens_out": 244,
+     "usd": 0.0068,
+     "error": "",
+     "ok": true,
+     "note": "TEMPLATE, 1 paragraf değişti"
+    },
+    "xlsx": {
+     "status": "DONE",
+     "seconds": 168,
+     "tokens_in": 16969,
+     "tokens_out": 19148,
+     "usd": 0.2637,
+     "error": "",
+     "ok": true,
+     "note": "2 sayfa, 100 formül"
+    },
+    "pptx": {
+     "status": "DONE",
+     "seconds": 172,
+     "tokens_in": 15907,
+     "tokens_out": 18455,
+     "usd": 0.2533,
+     "error": "",
+     "ok": true,
+     "note": "8 slayt, 8 not"
+    },
+    "merge": {
+     "status": "DONE",
+     "seconds": 160,
+     "tokens_in": 33363,
+     "tokens_out": 16699,
+     "usd": 0.2671,
+     "error": "",
+     "ok": true,
+     "note": "olgu %96, toplam stok doğru"
+    }
+   }
+  }
+ ]
+}
