@@ -147,6 +147,42 @@ class SettingsControllerTest {
         assertEquals("claude-key",provider.configuredKey(com.officemanipulator.llm.LlmProvider.ANTHROPIC),"switching keeps the other provider's key");
     }
 
+    @Test void aServerAddressFromSettingsIsCheckedThenSavedAndNeverGetsTheOldKey() throws Exception {
+        var seen = new java.util.ArrayList<String>();
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/models", ex -> {
+            seen.add(ex.getRequestHeaders().getFirst("Authorization"));
+            byte[] out = "{\"data\":[{\"id\":\"qwen3-vl\"}]}".getBytes();
+            ex.sendResponseHeaders(200, out.length); ex.getResponseBody().write(out); ex.close();
+        });
+        server.start();
+        try {
+            when(settings.get(anyString(), nullable(String.class))).thenAnswer(a -> stored.getOrDefault(a.getArgument(0), a.getArgument(1)));
+            doAnswer(a -> { String value=a.getArgument(1); if(value==null || value.isBlank()) stored.remove(a.getArgument(0)); else stored.put(a.getArgument(0),value); return null; })
+                    .when(settings).set(anyString(), nullable(String.class));
+            doAnswer(a -> { stored.putAll(a.getArgument(0)); return null; }).when(settings).setAll(anyMap());
+            var compatible = new com.officemanipulator.llm.OpenAiCompatibleLlmClient("https://openrouter.ai/api/v1");
+            org.springframework.test.util.ReflectionTestUtils.setField(compatible, "settings", settings);
+            var provider = new LlmClientProvider(settings,pricing,java.util.List.of(new AnthropicLlmClient("",mock(ClaudeKeyVerifier.class)),compatible),
+                    "openai_compatible","","claude-sonnet-4-6","","","","","sk-or-secret","gpt-oss");
+            var controller = new SettingsController(provider,settings,gemini());
+            org.springframework.test.util.ReflectionTestUtils.setField(controller, "compatibleClient", compatible);
+            String lan = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1/";
+
+            assertEquals(400, controller.verify(new SettingsController.VerificationRequest(null,"qwen3-vl","openai_compatible",lan)).getStatusCode().value(),
+                    "a new address must not receive the saved key");
+            assertEquals(400, controller.verify(new SettingsController.VerificationRequest("EMPTY","qwen3-vl","openai_compatible","file:///etc")).getStatusCode().value());
+            assertEquals(400, controller.verify(new SettingsController.VerificationRequest("EMPTY","qwen3-vl","openai_compatible","http://169.254.169.254/v1")).getStatusCode().value());
+            assertTrue(seen.isEmpty());
+            assertEquals("https://openrouter.ai/api/v1", controller.get().compatibleBaseUrl());
+
+            assertEquals(200, controller.verify(new SettingsController.VerificationRequest("EMPTY","qwen3-vl","openai_compatible",lan)).getStatusCode().value());
+            assertEquals(java.util.List.of("Bearer EMPTY"), seen);
+            assertEquals(lan.replaceAll("/+$",""), controller.get().compatibleBaseUrl());
+            assertEquals("qwen3-vl", controller.get().model());
+        } finally { server.stop(0); }
+    }
+
     @Test void providerOutsideWhitelistAndUnsafeModelNamesAreRejected() {
         var controller=new SettingsController(provider(""),settings,gemini());
         assertEquals(400,controller.verify(new SettingsController.VerificationRequest("k","m","https://evil.example")).getStatusCode().value());

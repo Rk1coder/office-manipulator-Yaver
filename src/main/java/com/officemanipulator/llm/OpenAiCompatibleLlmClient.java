@@ -13,8 +13,8 @@ import java.util.regex.Pattern;
 
 /**
  * Any server speaking the OpenAI Chat Completions API: vLLM, Ollama, LM Studio, Groq, Mistral,
- * DeepSeek, OpenRouter, ... The endpoint comes only from {@code OPENAI_COMPATIBLE_BASE_URL}
- * (operator .env), never from a request. Tool calling must be enabled on the server
+ * DeepSeek, OpenRouter, ... The endpoint comes from {@code OPENAI_COMPATIBLE_BASE_URL} (operator .env) or
+ * from the Settings page after a successful check, never from a chat request. Tool calling must be enabled on the server
  * (vLLM: {@code --enable-auto-tool-choice --tool-call-parser <parser>}).
  */
 @Component
@@ -22,7 +22,12 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
     // Hugging Face style ids ("Qwen/Qwen2.5-72B-Instruct") have a slash; the id only goes in the JSON body.
     private static final Pattern SAFE_MODEL = Pattern.compile("[a-zA-Z0-9._:/-]{1,128}");
 
+    /** Settings key for an address entered on the Settings page; it wins over the .env address. */
+    public static final String KEY_BASE_URL = "llm.openai_compatible.base-url";
+
     private final String baseUrl;
+    @Autowired(required = false)
+    private com.officemanipulator.config.AppSettingsService settings;
 
     @Autowired
     public OpenAiCompatibleLlmClient(@Value("${app.llm.openai-compatible.base-url:}") String baseUrl) {
@@ -31,14 +36,37 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
 
     OpenAiCompatibleLlmClient(HttpClient client, String baseUrl) {
         super(client, "OpenAI-uyumlu sunucu");
-        String trimmed = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
-        if (!trimmed.isEmpty()) {
-            URI uri = URI.create(trimmed);
-            if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getHost() == null) {
-                throw new IllegalArgumentException("OPENAI_COMPATIBLE_BASE_URL http(s)://host[:port]/v1 biçiminde olmalı");
-            }
+        this.baseUrl = normalizeBaseUrl(baseUrl);
+    }
+
+    /** "" for blank; otherwise http(s)://host[:port]/path without a trailing slash, or IllegalArgumentException. */
+    public static String normalizeBaseUrl(String raw) {
+        String trimmed = raw == null ? "" : raw.trim().replaceAll("/+$", "");
+        if (trimmed.isEmpty()) return "";
+        URI uri;
+        try { uri = URI.create(trimmed); } catch (IllegalArgumentException e) { uri = null; }
+        if (uri == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getHost() == null
+                || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null) {
+            throw new IllegalArgumentException("Sunucu adresi http(s)://host[:port]/v1 biçiminde olmalı (örn. http://192.168.1.50:8000/v1)");
         }
-        this.baseUrl = trimmed;
+        // shortcut: blocks only literal link-local/metadata hosts (the cloud metadata service), not names resolving there; resolve and check if the app is ever exposed beyond localhost.
+        String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+        if (host.startsWith("169.254.") || host.startsWith("[fe80") || host.equals("metadata.google.internal")) {
+            throw new IllegalArgumentException("Bu adres kullanılamaz.");
+        }
+        return trimmed;
+    }
+
+    /** The Settings page's address if one was saved, else OPENAI_COMPATIBLE_BASE_URL ("" when neither). */
+    public String baseUrl() {
+        String saved = settings == null ? null : settings.get(KEY_BASE_URL, null);
+        return saved == null || saved.isBlank() ? baseUrl : saved;
+    }
+
+    /** Remembers an address that just passed {@link #verifyAt}. */
+    public void saveBaseUrl(String normalized) {
+        if (settings == null) throw new IllegalStateException("Ayar deposu yok");
+        settings.set(KEY_BASE_URL, normalized);
     }
 
     @Override public LlmProvider provider() { return LlmProvider.OPENAI_COMPATIBLE; }
@@ -46,9 +74,13 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
     /** Lists the server's models (vLLM has no per-model lookup) and checks the chosen one is served. */
     @Override
     public void verify(String apiKey, String model) {
-        if (baseUrl.isEmpty()) throw new VerificationFailure(HttpStatus.BAD_REQUEST, "Sunucu adresi tanımlı değil: .env dosyasında OPENAI_COMPATIBLE_BASE_URL ayarlayın.");
+        verifyAt(baseUrl(), apiKey, model);
+    }
+
+    public void verifyAt(String url, String apiKey, String model) {
+        if (url.isEmpty()) throw new VerificationFailure(HttpStatus.BAD_REQUEST, "Sunucu adresi tanımlı değil: Ayarlar'da sunucu adresini girin ya da .env dosyasında OPENAI_COMPATIBLE_BASE_URL ayarlayın.");
         String wanted = requireSafeModel(model);
-        JsonNode models = http.verify(URI.create(endpoint() + "/models"), auth(apiKey));
+        JsonNode models = http.verify(URI.create(url + "/models"), auth(apiKey));
         for (JsonNode served : models.path("data")) {
             if (served.path("id").asText().equals(wanted)) return;
         }
@@ -111,8 +143,9 @@ public class OpenAiCompatibleLlmClient extends OpenAiLlmClient {
     }
 
     private String endpoint() {
-        if (baseUrl.isEmpty()) throw new IllegalStateException("OPENAI_COMPATIBLE_BASE_URL ayarlanmalı (örn. http://vllm:8000/v1)");
-        return baseUrl;
+        String url = baseUrl();
+        if (url.isEmpty()) throw new IllegalStateException("OpenAI-uyumlu sunucu adresi ayarlanmalı (Ayarlar ya da OPENAI_COMPATIBLE_BASE_URL, örn. http://vllm:8000/v1)");
+        return url;
     }
 
     static String requireSafeModel(String model) {

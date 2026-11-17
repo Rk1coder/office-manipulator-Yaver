@@ -506,7 +506,7 @@ body{margin:0}
       <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ crumb }}</span>
     </div>
     <div style="flex:none;display:flex;align-items:center;gap:10px">
-      <button sc-camel-on-click="{{ openSettings }}" title="{{ apiStatusTitle }}" style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:{{ apiStatusColor }};border:1px solid {{ apiStatusColor }};background:transparent;border-radius:999px;padding:3px 10px;cursor:pointer">
+      <button sc-camel-on-click="{{ openSettings }}" title="{{ apiStatusTitle }}" style="display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:{{ apiStatusColor }};border:1px solid {{ apiStatusColor }};background:transparent;border-radius:999px;padding:3px 10px;cursor:pointer;max-width:min(460px,52vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <span style="width:6px;height:6px;border-radius:50%;background:{{ apiStatusColor }}"></span>{{ apiStatusLabel }}
       </button>
       <sc-if value="{{ hasJob }}" hint-placeholder-val="{{ false }}">
@@ -1160,6 +1160,13 @@ body{margin:0}
               </sc-for>
             </select>
           </div>
+          <sc-if value="{{ settingsIsCompatible }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:12.5px;font-weight:600">{{ settingsBaseUrlLabel }}</label>
+              <input type="text" aria-label="{{ settingsBaseUrlLabel }}" autocomplete="off" spellcheck="false" disabled="{{ settingsBusy }}" value="{{ settingsBaseUrlInput }}" sc-camel-on-change="{{ onSettingsBaseUrl }}" placeholder="http://192.168.1.50:8000/v1" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--bg);color:var(--tx)">
+              <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ settingsBaseUrlHint }}</span>
+            </div>
+          </sc-if>
           <div style="display:flex;flex-direction:column;gap:6px">
             <label style="font-size:12.5px;font-weight:600">{{ settingsKeyLabel }}</label>
             <input type="password" aria-label="{{ settingsKeyLabel }}" autocomplete="off" disabled="{{ settingsBusy }}" value="{{ settingsClaudeKeyInput }}" sc-camel-on-change="{{ onSettingsClaudeKey }}" placeholder="{{ settingsClaudeKeyPlaceholder }}" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx)">
@@ -1757,7 +1764,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
+      this.setState({ settingsData: data, settingsBaseUrlInput: data.compatibleBaseUrl || '', settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsOpen: data.claudeKeyVerified ? this.state.settingsOpen : true });
     } catch (_) {}
   }
   async openSettings(button) {
@@ -1768,7 +1775,7 @@ class Component extends DCLogic {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
       const data = await response.json();
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
+      this.setState({ settingsData: data, settingsBaseUrlInput: data.compatibleBaseUrl || '', settingsProviderInput: data.llmProvider || 'anthropic', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsGeminiEnabledInput: data.geminiEnabled, settingsGeminiInputPrice: this.priceText(data.geminiInputPrice), settingsGeminiOutputPrice: this.priceText(data.geminiOutputPrice), settingsClaudeKeyInput: '', settingsGeminiKeyInput: '' });
     } catch (error) { this.setState({ settingsError: error.message }); }
   }
   closeSettings() {
@@ -1984,10 +1991,17 @@ class Component extends DCLogic {
         steps: tr ? ['platform.openai.com adresine gidin ve giriş yapın / hesap oluşturun.', '"API keys" sayfasını açın.', '"Create new secret key" ile yeni bir anahtar oluşturun.', 'Anahtarı yukarıdaki kutuya yapıştırın, model adını yazın ve Kontrol et düğmesine basın.']
           : ['Go to platform.openai.com and sign in / create an account.', 'Open the "API keys" page.', 'Click "Create new secret key".', 'Paste the key above, type the model name, and click Check.'] },
       openai_compatible: { name: tr ? 'OpenAI-uyumlu (vLLM, Ollama…)' : 'OpenAI-compatible (vLLM, Ollama…)', short: tr ? 'OpenAI-uyumlu sunucu' : 'OpenAI-compatible server', keyHint: 'EMPTY', url: 'https://docs.vllm.ai/en/latest/features/tool_calling.html', console: 'vLLM docs',
-        steps: tr ? ['Sunucu adresini .env dosyasında OPENAI_COMPATIBLE_BASE_URL olarak tanımlayın (örn. http://vllm:8000/v1).', 'vLLM\'i araç çağırma açık başlatın: --enable-auto-tool-choice --tool-call-parser …', 'Sunucu kimlik doğrulaması istemiyorsa anahtar olarak EMPTY yazın.', 'Model adını sunucunun /v1/models listesindeki gibi yazın (örn. Qwen/Qwen2.5-72B-Instruct) ve Kontrol et düğmesine basın.']
-          : ['Set the server address as OPENAI_COMPATIBLE_BASE_URL in .env (e.g. http://vllm:8000/v1).', 'Start vLLM with tool calling on: --enable-auto-tool-choice --tool-call-parser …', 'If the server has no auth, type EMPTY as the key.', 'Type the model id as listed by the server\'s /v1/models (e.g. Qwen/Qwen2.5-72B-Instruct) and click Check.'] }
+        steps: tr ? ['Sunucu adresini aşağıdaki kutuya yazın (örn. http://192.168.1.50:8000/v1) ya da .env dosyasında OPENAI_COMPATIBLE_BASE_URL olarak tanımlayın.', 'vLLM\'i araç çağırma açık başlatın: --enable-auto-tool-choice --tool-call-parser …', 'Sunucu kimlik doğrulaması istemiyorsa anahtar olarak EMPTY yazın.', 'Model adını sunucunun /v1/models listesindeki gibi yazın (örn. Qwen/Qwen2.5-72B-Instruct) ve Kontrol et düğmesine basın.']
+          : ['Type the server address in the box below (e.g. http://192.168.1.50:8000/v1) or set OPENAI_COMPATIBLE_BASE_URL in .env.', 'Start vLLM with tool calling on: --enable-auto-tool-choice --tool-call-parser …', 'If the server has no auth, type EMPTY as the key.', 'Type the model id as listed by the server\'s /v1/models (e.g. Qwen/Qwen2.5-72B-Instruct) and click Check.'] }
     };
     return meta[id] || meta.anthropic;
+  }
+  /** The active provider as the user knows it: an OpenAI-compatible server by its host:port (e.g. openrouter.ai, 192.168.1.50:8000). */
+  activeApiName(d) {
+    if (d.llmProvider === 'openai_compatible' && d.compatibleBaseUrl) {
+      try { return new URL(d.compatibleBaseUrl).host; } catch (e) {}
+    }
+    return this.providerMeta(d.llmProvider).short;
   }
   selectSettingsProvider(id) {
     const d = this.state.settingsData;
@@ -2062,7 +2076,8 @@ class Component extends DCLogic {
     try {
       const response = await fetch('/api/settings/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ provider: s.settingsProviderInput, claudeApiKey: s.settingsClaudeKeyInput.trim() || null, model: (s.settingsModelInput || '').trim() || null })
+        body: JSON.stringify({ provider: s.settingsProviderInput, claudeApiKey: s.settingsClaudeKeyInput.trim() || null, model: (s.settingsModelInput || '').trim() || null,
+          baseUrl: s.settingsProviderInput === 'openai_compatible' ? (s.settingsBaseUrlInput || '').trim() || null : null })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -2070,7 +2085,7 @@ class Component extends DCLogic {
         throw new Error(data.error || (this.L() === 'tr' ? 'Doğrulama başarısız.' : 'Verification failed.'));
       }
       if (data.claudeKeyVerified !== true) throw new Error(this.L() === 'tr' ? 'API doğrulaması tamamlanmadı.' : 'API verification did not complete.');
-      this.setState({ settingsData: data, settingsProviderInput: data.llmProvider, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsActivated: true });
+      this.setState({ settingsData: data, settingsBaseUrlInput: data.compatibleBaseUrl || '', settingsProviderInput: data.llmProvider, settingsClaudeKeyInput: '', settingsModelInput: data.model, settingsModelCustom: !this.isSuggestedModel(data, data.llmProvider, data.model), settingsActivated: true });
     } catch (error) {
       this.setState({ settingsError: error.name === 'AbortError'
         ? (this.L() === 'tr' ? 'Kontrol zaman aşımına uğradı. Bağlantınızı kontrol edip tekrar deneyin.' : 'Verification timed out. Check your connection and try again.')
@@ -2858,7 +2873,7 @@ class Component extends DCLogic {
       officeRef: this.officeRef,
       settingsLabel: L === 'tr' ? 'Ayarlar' : 'Settings',
       apiStatusLabel: s.settingsData
-        ? (s.settingsData.claudeKeyVerified ? (L === 'tr' ? 'API aktif' : 'API active')
+        ? (s.settingsData.claudeKeyVerified ? (L === 'tr' ? 'API aktif' : 'API active') + ' · ' + this.activeApiName(s.settingsData) + ' · ' + s.settingsData.model
           : (s.settingsData.claudeKeyConfigured ? (L === 'tr' ? 'API doğrulanmadı' : 'API not verified') : (L === 'tr' ? 'API etkin değil' : 'API inactive')))
         : (L === 'tr' ? 'API durumu yükleniyor…' : 'Loading API status…'),
       apiStatusColor: s.settingsData ? (s.settingsData.claudeKeyVerified ? 'var(--ac)' : 'var(--dg)') : 'var(--mu)',
@@ -2920,6 +2935,12 @@ class Component extends DCLogic {
       settingsHasError: !!s.settingsError,
       settingsClaudeKeyInput: s.settingsClaudeKeyInput,
       onSettingsClaudeKey: e => this.setState({ settingsClaudeKeyInput: e.target.value }),
+      settingsIsCompatible: s.settingsProviderInput === 'openai_compatible',
+      settingsBaseUrlInput: s.settingsBaseUrlInput || '',
+      onSettingsBaseUrl: e => this.setState({ settingsBaseUrlInput: e.target.value }),
+      settingsBaseUrlLabel: L === 'tr' ? 'Sunucu adresi' : 'Server address',
+      settingsBaseUrlHint: L === 'tr' ? 'vLLM, Ollama ya da OpenRouter gibi bir sunucunun adresi (örn. http://192.168.1.50:8000/v1, http://localhost:11434/v1). Adres değişince anahtarı da girin; sunucu anahtar istemiyorsa EMPTY yazın. Kontrol et başarılı olunca kaydedilir.'
+        : 'Address of a server such as vLLM, Ollama or OpenRouter (e.g. http://192.168.1.50:8000/v1, http://localhost:11434/v1). Enter the key too when the address changes; type EMPTY if the server needs none. Saved once Check succeeds.',
       settingsClaudeKeyPlaceholder: s.settingsData && s.settingsData.claudeKeyConfigured && s.settingsProviderInput === s.settingsData.llmProvider
         ? (L === 'tr' ? 'Mevcut: ' + s.settingsData.claudeKeyMasked + ' (değiştirmek için yeni anahtar yazın)' : 'Current: ' + s.settingsData.claudeKeyMasked + ' (type a new key to change it)')
         : (L === 'tr' ? this.providerMeta(s.settingsProviderInput).keyHint + ' yapıştırın' : 'Paste your ' + this.providerMeta(s.settingsProviderInput).keyHint + ' key'),
