@@ -1643,11 +1643,17 @@ class Component extends DCLogic {
   jobMetadata(job) {
     return { ...job, failedAt: job.failedAt || job.errorStage || null, fileName: job.fileName || '',
       tokens: (job.tokenInput || 0).toLocaleString('tr-TR') + ' / ' + (job.tokenOutput || 0).toLocaleString('tr-TR'),
-      cost: job.cost == null ? '' : String(job.cost).startsWith('$') ? String(job.cost) : '$' + Number(job.cost).toFixed(4),
+      cost: this.costText(job),
       until: job.expiresAt ? new Date(job.expiresAt).getTime() : null,
       expired: !!job.expiresAt && new Date(job.expiresAt).getTime() < Date.now(),
       t0: job.createdAt ? new Date(job.createdAt).getTime() : Date.now(),
       ...(job.editMode ? { reason: this.editModeLabel(job.editMode) } : {}) };
+  }
+  /** A model with no price (e.g. picked on the Settings page for an OpenAI-compatible API) bills $0: say so instead of showing a free job. */
+  costText(job) {
+    if (job.cost == null) return '';
+    if (!(Number(job.costUsd) > 0) && (job.tokenInput || job.tokenOutput)) return this.L() === 'tr' ? 'ücret hesaplanmadı (fiyat tanımlı değil)' : 'not priced (no rate set)';
+    return String(job.cost).startsWith('$') ? String(job.cost) : '$' + Number(job.cost).toFixed(4);
   }
   editModeLabel(mode) {
     const tr = this.L() === 'tr';
@@ -1772,6 +1778,8 @@ class Component extends DCLogic {
   infoCards() {
     const host = typeof location !== 'undefined' ? location.origin : 'http://localhost:8081';
     const tr = this.state.lang !== 'en';
+    // With a verified key the first card points at the request box, not at Settings.
+    const ready = !!(this.state.settingsData && this.state.settingsData.claudeKeyVerified);
     const curl = {
       create: "curl -X POST " + host + "/api/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\", \"format\": \"DOCX\"}'\n\n→ {\"jobId\": \"…\", \"status\": \"PENDING\", \"format\": \"DOCX\"}",
       watch: "curl " + host + "/api/jobs/$JOB_ID\ncurl -N " + host + "/api/jobs/$JOB_ID/events",
@@ -1779,7 +1787,7 @@ class Component extends DCLogic {
       key: "{\n  \"message\": \"<" + (tr ? 'isteğin' : 'your request') + ">\",\n  \"llm_provider\": \"anthropic | gemini | openai | openai_compatible\",\n  \"llm_api_key\": \"<" + (tr ? 'anahtarın' : 'your key') + ">\",\n  \"llm_model\": \"<" + (tr ? 'model adı' : 'model name') + ">\"\n}"
     };
     return tr ? [
-      { id: 'what', eyebrow: 'TANIŞMA', title: 'Yaver nedir?', go: 'Başlamak için önce bir yapay zekâ anahtarı ekle', action: 'settings',
+      { id: 'what', eyebrow: 'TANIŞMA', title: 'Yaver nedir?', go: ready ? 'İlk isteğini yazarak başla' : 'Başlamak için önce bir yapay zekâ anahtarı ekle', action: ready ? 'new' : 'settings',
         desc: 'Ne istediğini kendi cümlelerinle yazarsın; Yaver bunu Word, PowerPoint, PDF, Excel veya CSV dosyasına dönüştürür.',
         sections: [
           { h: 'Ne işe yarar?', p: 'Rapor, sunum, tablo, özet, mektup gibi belgeleri sıfırdan hazırlamak ya da elindeki bir metni veya dosyayı başka bir biçime dönüştürmek için kullanılır. Belge yazmayı bilmen gerekmez; ne istediğini anlatman yeterlidir.' },
@@ -1842,7 +1850,7 @@ class Component extends DCLogic {
           { h: 'Güvenlik notu', p: 'Bu sürümde API kimlik doğrulaması yoktur. Sunucuyu yalnızca güvenilir bir iç ağda ya da kimlik doğrulayan bir ters vekil sunucunun arkasında açın.' }
         ] }
     ] : [
-      { id: 'what', eyebrow: 'WELCOME', title: 'What is Yaver?', go: 'To get started, add an AI key first', action: 'settings',
+      { id: 'what', eyebrow: 'WELCOME', title: 'What is Yaver?', go: ready ? 'Start by typing your first request' : 'To get started, add an AI key first', action: ready ? 'new' : 'settings',
         desc: 'You describe what you need in your own words; Yaver turns it into a Word, PowerPoint, PDF, Excel or CSV file.',
         sections: [
           { h: 'What is it for?', p: 'Creating reports, decks, tables, summaries or letters from scratch, or turning a text or file you already have into another format. You don\'t need to know how to lay out a document; describing what you want is enough.' },
@@ -2113,7 +2121,7 @@ class Component extends DCLogic {
           status,
           fileName: j.fileName || '',
           tokens: (j.tokenInput || 0).toLocaleString('tr-TR') + ' / ' + (j.tokenOutput || 0).toLocaleString('tr-TR'),
-          cost: j.cost || '$0.0000',
+          cost: this.costText(j) || '$0.0000',
           until: j.expiresAt ? new Date(j.expiresAt).getTime() : null,
           expired
         };
@@ -2744,9 +2752,10 @@ class Component extends DCLogic {
     const csvRows = csvRowSrc.slice(0, Math.ceil(csvRowSrc.length * revealFrac)).map(cells => ({ cells }));
 
     const seed = [];
-    const all = [...s.newHistory, ...seed].filter(h => !(j && j.live && h.id === j.id));
-    const historyRows = [];
     const liveRow = j && j.live && running ? [{ id: j.id, format: j.format, request: j.request, status: j.status, t0: j.t0 }] : [];
+    // Only the running job is drawn from live state; once it ends, its history row must show (it was dropped before).
+    const all = [...s.newHistory, ...seed].filter(h => !(liveRow.length && h.id === j.id));
+    const historyRows = [];
     const rowsAll = [...liveRow, ...all];
     let lastGroup = null;
     rowsAll.forEach(h => {

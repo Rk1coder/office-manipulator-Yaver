@@ -74,7 +74,9 @@ public class NodeScriptExecutor {
                 errReader.join(1000);
                 if (process.exitValue() != 0) {
                     throw new IOException(scriptFileName + " failed (exit "
-                            + process.exitValue() + "). Check Node 24 and prlimit. "
+                            + process.exitValue() + "). "
+                            // A SyntaxError is the model's script, not the runtime: don't send anyone to check Node.
+                            + (stderr.text().contains("SyntaxError") ? "" : "Check Node 24 and prlimit. ")
                             + stdout.text() + stderr.text());
                 }
                 if (!Files.isRegularFile(result, LinkOption.NOFOLLOW_LINKS) || Files.size(result) == 0) {
