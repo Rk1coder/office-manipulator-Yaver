@@ -22,7 +22,7 @@ Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çal�
 
 ## Yeni özellikler
 
-| Üç yapay zekâ sağlayıcısı: Anthropic, Gemini, OpenAI | Bilgi kartları ve kullanım rehberi |
+| Yapay zekâ sağlayıcıları: Anthropic, Gemini, OpenAI ve OpenAI-uyumlu sunucular (vLLM, Ollama, NanoGPT…) | Bilgi kartları ve kullanım rehberi |
 |---|---|
 | ![Çoklu LLM ayarları](docs/screenshots/coklu-llm-ayarlar.gif) | ![Bilgi kartları](docs/screenshots/bilgi-kartlari.gif) |
 | Ayarlar'da sağlayıcı seçilir, kendi API anahtarı girilip doğrulanır; model listeden seçilir ya da "Diğer (elle gir)" ile yazılır. Ayarlar dikey sekmeli: Yapay zekâ, Görsel üretim, Görünüm. | Sağ altta, tıklayınca sıradakine geçen 8 kartlık deste: Yaver nedir, API anahtarı, istek yazma, plan ve üretim, düzenleme, model seçimi, maliyet, API entegrasyonu. Her kartta bir yönlendirme düğmesi; üzerine gelince ekran görüntüleri yelpaze gibi açılır. |
@@ -39,7 +39,7 @@ Bu, Office Manipulator'ın internet bağlantısı olmayan bir bilgisayarda çal�
 
 ### Kendi anahtarınızla API çağrısı
 
-Kullanıcıya dönük eşzamanlı uç noktalar (`POST /api/chat`, belge düzenleme, Yaver Agent) istek gövdesinde isteğe bağlı `llm_provider`, `llm_api_key`, `llm_model` alanlarını kabul eder; o istek `.env`'deki varsayılan yerine bu anahtarla çalışır ve anahtar saklanmaz. Arka plan ve zamanlanmış işler her zaman `.env` değerlerini kullanır. Sağlayıcı yalnızca `anthropic`, `gemini` veya `openai` olabilir; istekten adres/uç nokta kabul edilmez.
+Kullanıcıya dönük eşzamanlı uç noktalar (`POST /api/chat`, belge düzenleme, Yaver Agent) istek gövdesinde isteğe bağlı `llm_provider`, `llm_api_key`, `llm_model` alanlarını kabul eder; o istek `.env`'deki varsayılan yerine bu anahtarla çalışır ve anahtar saklanmaz. Arka plan ve zamanlanmış işler her zaman `.env` değerlerini kullanır. Sağlayıcı yalnızca `anthropic`, `gemini`, `openai` veya `openai_compatible` olabilir; `openai_compatible` her zaman `.env`'deki ya da Ayarlar'da doğrulanmış `OPENAI_COMPATIBLE_BASE_URL` sunucusuna gider (vLLM, Ollama, NanoGPT, OpenRouter…). İstekten adres/uç nokta kabul edilmez.
 
 ```bash
 curl -X POST http://localhost:8081/api/chat \
@@ -48,6 +48,71 @@ curl -X POST http://localhost:8081/api/chat \
 ```
 
 > Bu sürümde API kimlik doğrulaması yoktur; sunucuyu yalnızca güvenilir bir iç ağda ya da kimlik doğrulayan bir ters vekil sunucunun arkasında açın.
+
+## Model karşılaştırması (benchmark)
+
+Hangi modeli seçeceğinize karar vermeniz için Yaver 10 metin ve 7 görsel modelle, gerçek kullanıcı akışıyla (istek → plan → onay → üretim → doğrulama) test edildi. Tüm modeller tek bir [NanoGPT](https://nano-gpt.com) anahtarıyla, `openai_compatible` sağlayıcısı üzerinden çağrıldı. Puanlama otomatiktir; insan yargısı yoktur. Tarih: 17 Kasım 2026. Her model bir kez koştu; tek koşum olduğu için ±1 görevlik sapma olabilir.
+
+**Görevler:**
+1. **CSV:** 25 ürünlük liste.
+2. **Word:** 6 bölümlü politika ve bir tablo.
+3. **Şablon düzenleme:** Başlığı değiştir. Şablon korunmalı ve en fazla 2 paragraf değişmeli.
+4. **Excel:** Formüllü bütçe; en az 12 formül.
+5. **PowerPoint:** 6–12 slayt ve konuşmacı notları.
+6. **4 belge birleştirme:** docx, pptx ve 2 csv kaynaktan tek rapor. Toplantı kararlarının tarih, sorumlu ve tutarları ile kategori bazında stok toplamları kontrol edilir; olguların en az %90'ı ve doğru toplam stok istenir.
+
+### Metin modelleri
+
+| Model | Başarı | CSV | Word | Şablon düzenleme | Excel | PowerPoint | 4 belge birleştirme | Toplam süre | Maliyet |
+|---|---|---|---|---|---|---|---|---|---|
+| `openai/gpt-6.1-terra` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %100 | 4 dk | $0.21 |
+| `z-ai/glm-5.3` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %100 | 8 dk | $0.10 |
+| `openai/gpt-6-sol` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %96 | 4 dk | $0.44 |
+| `anthropic/claude-sonnet-5.5` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %100 | 10 dk | $1.06 |
+| `anthropic/claude-opus-5.5` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %100 | 17 dk | $2.92 |
+| `moonshotai/kimi-k2.6` | **6/6** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ %100 | 53 dk | $0.25 |
+| `google/gemini-3.1-pro-preview` | **5/6** | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ %96 | 12 dk | $1.04 |
+| `deepseek/deepseek-v4.1-flash` | **5/6** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ %100 | 15 dk | $0.05 |
+| `google/gemini-3.8-flash` | **4/6** | ✅ | ✅ | ✅ | ⚠️ 503 | ✅ | ⚠️ 503 | 16 dk | $0.41 |
+| `qwen/qwen3.8-27b` | **3/6** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | 13 dk | $0.11 |
+
+✅ geçti · ⚠️ belge üretildi ama kontrol tutmadı (Gemini 3.1 Pro: 6 bölümden 5'i) · ❌ model 4 denemede çalışan belge üretemedi · ⚠️ 503 NanoGPT'nin Google rotası "All routes failed" döndü. Bu bir model hatası değil. Gemini 3.8 Flash'ın birleştirmesi ilk koşuda %100 geçmişti. Maliyetler NanoGPT fiyatlarıyladır ve sunum incelemesi dahildir.
+
+**Öneri:**
+- **Varsayılan / en iyi fiyat-performans:** `openai/gpt-6.1-terra`. Tüm görevleri en hızlı (4 dk) ve ucuz geçti.
+- **En ucuz tam başarı:** `z-ai/glm-5.3`. 6/6 görev, $0.10.
+- **En yüksek kalite, maliyet önemsizse:** `anthropic/claude-sonnet-5.5`. Opus 5.5 da 6/6 geçti ama yaklaşık 3 kat pahalı ve sonuçta fark yok.
+- **Kimi K2.6:** Hepsini geçti ama çok yavaş (birleştirme 24 dk).
+- **DeepSeek V4.1 Flash:** Çok ucuz; Excel'de güvenilmez.
+- **Yerel/vLLM sınıfı 27B modeller (Qwen3.8-27B):** Yaver için yetersiz. Excel, sunum ve birleştirmede çalışan betik yazamadı. Kendi sunucunuzda en az 70B sınıfı, araç çağırması güçlü bir model kullanın.
+
+### Görsel modelleri
+
+Aynı 3 sunum görseli istemi her modelle üretildi (`IMAGE_API_STYLE=images`, `/images/generations`). Uygulama içinden uçtan uca da denendi: FLUX.3 Klein ile 5 slaytlık sunuma 5 görsel üretildi ve her biri $0.008 olarak bütçeye işlendi.
+
+| Model | Başarı | Süre/görsel | $/görsel | Örnekler (kafe · büyüme grafiği · çalışma masası) | Not |
+|---|---|---|---|---|---|
+| `blackforestlabs/flux-3/klein/text-to-image` | 3/3 | 6 sn | $0.008 | <img src="benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-1.jpg" width="110"> <img src="benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-2.jpg" width="110"> <img src="benchmark-results/images/blackforestlabs_flux-3_klein_text-to-image-3.jpg" width="110"> | Fiyatına göre çok iyi; gerçekçi fotoğraf ve sade illüstrasyon |
+| `qwen-image-2.1/text-to-image` | 3/3 | 9 sn | $0.02 | <img src="benchmark-results/images/qwen-image-2.1_text-to-image-1.jpg" width="110"> <img src="benchmark-results/images/qwen-image-2.1_text-to-image-2.jpg" width="110"> <img src="benchmark-results/images/qwen-image-2.1_text-to-image-3.jpg" width="110"> | "Yazı yok" dendiği halde bozuk yazı ekledi; grafik istemini kaçırdı |
+| `seedream-v4.5` | 3/3 | 16 sn | $0.04 | <img src="benchmark-results/images/seedream-v4.5-1.jpg" width="110"> <img src="benchmark-results/images/seedream-v4.5-2.jpg" width="110"> <img src="benchmark-results/images/seedream-v4.5-3.jpg" width="110"> | İyi fotoğraf; 3. istemde kulaklık ve bitkiyi atladı |
+| `ideogram/v4.5` | 3/3 | 20 sn | $0.06 | <img src="benchmark-results/images/ideogram_v4.5-1.jpg" width="110"> <img src="benchmark-results/images/ideogram_v4.5-2.jpg" width="110"> <img src="benchmark-results/images/ideogram_v4.5-3.jpg" width="110"> | Temiz, kurumsal illüstrasyon |
+| `nano-banana-2` | 3/3 | 24 sn | $0.08 | <img src="benchmark-results/images/nano-banana-2-1.jpg" width="110"> <img src="benchmark-results/images/nano-banana-2-2.jpg" width="110"> <img src="benchmark-results/images/nano-banana-2-3.jpg" width="110"> | Ayrıntılı ve isteme sadık |
+| `gpt-image-1.5` | 3/3 | 15 sn | $0.17 | <img src="benchmark-results/images/gpt-image-1.5-1.jpg" width="110"> <img src="benchmark-results/images/gpt-image-1.5-2.jpg" width="110"> <img src="benchmark-results/images/gpt-image-1.5-3.jpg" width="110"> | Sunuma en uygun sade kompozisyonlar |
+| `nano-banana-pro` | 3/3 | 32 sn | $0.14 | <img src="benchmark-results/images/nano-banana-pro-1.jpg" width="110"> <img src="benchmark-results/images/nano-banana-pro-2.jpg" width="110"> <img src="benchmark-results/images/nano-banana-pro-3.jpg" width="110"> | En ayrıntılı ve isteme en sadık; en yavaş |
+
+**Öneri:**
+- **Ucuz ve hızlı:** FLUX.3 Klein.
+- **En iyi kalite:** Nano Banana Pro ya da GPT Image 1.5.
+- Sunum görsellerinde yazı istemiyorsanız Qwen-Image'dan kaçının.
+
+### Yeniden çalıştırma
+
+```bash
+BENCH_API_KEY=<anahtar> python3 scripts/benchmark.py text  --app http://localhost:8090 --models openai/gpt-6.1-terra,z-ai/glm-5.3
+BENCH_API_KEY=<anahtar> python3 scripts/benchmark.py image --models seedream-v4.5,nano-banana-2
+```
+
+Uygulamanın `OPENAI_COMPATIBLE_BASE_URL` değeri aynı sağlayıcıyı göstermelidir (varsayılan `BENCH_BASE_URL=https://nano-gpt.com/api/v1`). `--cap` harcama tavanıdır (varsayılan $14). Ham sonuçlar `benchmark-results/` altında JSON olarak durur.
 
 ## Gereksinimler
 
@@ -135,6 +200,8 @@ docker compose -p office-manipulator-teslim logs -f app   # yalnızca uygulama s
 | `BUDGET_LIMIT_USD` | AI çağrıları için bütçe tavanı | AI kapalıyken etkisizdir, değiştirmenize gerek yok |
 | `GEMINI_ENABLED`, `GEMINI_IMAGE_MODEL`, `GEMINI_INPUT/OUTPUT_PRICE_PER_MILLION` | Opsiyonel AI görsel üretimi (`GEMINI_API_KEY`'i kullanır; fiyat girilmeden çalışmaz) | `false` bırakın |
 | `IMAGE_OPENAI_COMPATIBLE_BASE_URL` | Görselleri Google Gemini API yerine OpenAI-uyumlu bir uç noktadan üretir (örn. OpenRouter: `https://openrouter.ai/api/v1`, `GEMINI_IMAGE_MODEL=google/gemini-2.5-flash-image`) | Boş = Google Gemini API. Doluysa `GEMINI_API_KEY` boş bırakılabilir, `OPENAI_COMPATIBLE_API_KEY` kullanılır |
+| `IMAGE_API_STYLE` | `chat` = chat/completions ile görsel (Gemini görsel modelleri); `images` = `/images/generations` (FLUX, Seedream, GPT Image, Ideogram…; örn. NanoGPT `https://nano-gpt.com/api/v1`) | `chat` |
+| `IMAGE_PRICE_PER_IMAGE` | `images` stilinde görsel başına USD fiyatı; bütçe bununla takip edilir | `0` (= görsel üretimi kapalı) |
 
 AI kapalıyken (anahtar boşken) model ve fiyat satırları etkisizdir; dokunmanıza gerek yoktur.
 

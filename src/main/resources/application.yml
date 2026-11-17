@@ -98,6 +98,9 @@ app:
     output-price-per-million: ${GEMINI_OUTPUT_PRICE_PER_MILLION:0}
     # Blank = Google's Gemini API; an OpenAI-compatible URL (e.g. https://openrouter.ai/api/v1) routes images there.
     openai-compatible-base-url: ${IMAGE_OPENAI_COMPATIBLE_BASE_URL:}
+    # chat = chat/completions with image output (Gemini image models); images = /images/generations (FLUX, Seedream, GPT Image...).
+    api-style: ${IMAGE_API_STYLE:chat}
+    price-per-image: ${IMAGE_PRICE_PER_IMAGE:0}
 
 logging:
   level:
