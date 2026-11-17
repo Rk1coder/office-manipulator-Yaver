@@ -29,6 +29,8 @@ public class SettingsController {
     private final LlmClientProvider claudeClientProvider;
     private final AppSettingsService settingsService;
     private final GeminiImageService geminiImageService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.llm.OpenAiCompatibleLlmClient compatibleClient;
 
     public SettingsController(LlmClientProvider claudeClientProvider, AppSettingsService settingsService,
             GeminiImageService geminiImageService) {
@@ -64,8 +66,10 @@ public class SettingsController {
         }
     }
     /** {@code claudeApiKey} keeps its old name for the existing UI; it is the key of {@code provider}. */
-    public record VerificationRequest(String claudeApiKey, String model, String provider) {
-        public VerificationRequest(String claudeApiKey, String model) { this(claudeApiKey, model, null); }
+    /** {@code baseUrl}: an OpenAI-compatible server's address (e.g. a vLLM on the LAN); saved only after it passes the check. */
+    public record VerificationRequest(String claudeApiKey, String model, String provider, String baseUrl) {
+        public VerificationRequest(String claudeApiKey, String model) { this(claudeApiKey, model, null, null); }
+        public VerificationRequest(String claudeApiKey, String model, String provider) { this(claudeApiKey, model, provider, null); }
     }
     public record VerificationError(String error, SettingsResponse settings) {}
 
@@ -110,9 +114,22 @@ public class SettingsController {
         if (key == null || key.isBlank() || key.length() > 4096 || key.chars().anyMatch(c -> c <= 32 || c >= 127))
             return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir API anahtarı girin."));
         if (model == null || !modelAllowed(model)) return ResponseEntity.badRequest().body(ErrorResponse.of("Geçerli bir model seçin."));
+        String baseUrl = null;
+        if (provider == LlmProvider.OPENAI_COMPATIBLE && compatibleClient != null && body.baseUrl() != null && !body.baseUrl().isBlank()) {
+            try {
+                baseUrl = com.officemanipulator.llm.OpenAiCompatibleLlmClient.normalizeBaseUrl(body.baseUrl());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+            }
+            // The saved key belongs to the saved server; a new address gets only a key typed for it.
+            if (!baseUrl.equals(compatibleClient.baseUrl()) && (body.claudeApiKey() == null || body.claudeApiKey().isBlank()))
+                return ResponseEntity.badRequest().body(ErrorResponse.of("Yeni sunucu adresi için API anahtarını da girin (sunucu anahtar istemiyorsa EMPTY yazın)."));
+        }
         boolean current = provider == claudeClientProvider.defaultProvider();
         try {
-            claudeClientProvider.client(provider).verify(key, model);
+            if (baseUrl != null) compatibleClient.verifyAt(baseUrl, key, model);
+            else claudeClientProvider.client(provider).verify(key, model);
+            if (baseUrl != null) compatibleClient.saveBaseUrl(baseUrl);
             claudeClientProvider.activateVerified(provider, key, model);
             return ResponseEntity.ok(currentView());
         } catch (ClaudeKeyVerifier.VerificationFailure failure) {
@@ -144,6 +161,7 @@ public class SettingsController {
                 claudeClientProvider.defaultProvider().id(),
                 geminiImageService.endpointHost(),
                 geminiImageService.model(),
+                compatibleClient == null ? null : compatibleClient.baseUrl(),
                 providerModels()
         );
     }

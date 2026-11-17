@@ -21,6 +21,8 @@ public record SettingsResponse(
         /** Host images are generated through when not Google's Gemini API (e.g. "openrouter.ai"), else null. */
         String imageVia,
         String imageModel,
+        /** The OpenAI-compatible server address in use (Settings page or .env), "" when none. */
+        String compatibleBaseUrl,
         /** Whitelisted providers (keys, in display order) with their suggested models. */
         java.util.Map<String, List<String>> providerModels
 ) {}
