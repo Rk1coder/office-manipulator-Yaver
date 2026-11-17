@@ -18,6 +18,9 @@ public record SettingsResponse(
         String geminiInputPrice,
         String geminiOutputPrice,
         String llmProvider,
+        /** Host images are generated through when not Google's Gemini API (e.g. "openrouter.ai"), else null. */
+        String imageVia,
+        String imageModel,
         /** Whitelisted providers (keys, in display order) with their suggested models. */
         java.util.Map<String, List<String>> providerModels
 ) {}

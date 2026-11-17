@@ -98,6 +98,13 @@ public class GeminiImageService {
         return key;
     }
 
+    /** Host of the OpenAI-compatible image endpoint, or null when images come from Google's Gemini API. */
+    public String endpointHost() {
+        return compatibleBaseUrl.isEmpty() ? null : java.net.URI.create(compatibleBaseUrl).getHost();
+    }
+
+    public String model() { return model; }
+
     /** True when the key comes from the LLM provider settings rather than the image settings. */
     public boolean keySharedWithLlm() {
         String own = settings.get(KEY_API_KEY, envApiKey);
