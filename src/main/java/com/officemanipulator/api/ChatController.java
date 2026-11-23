@@ -138,7 +138,8 @@ public class ChatController {
             Job editJob = documentEditService.createEditJob(sourceJob.getId(), message, null, targetFormat);
             llm.bindJob(editJob.getId(), override);
             documentEditService.processEditAsync(editJob.getId(), sourceJob.getId());
-            return ResponseEntity.accepted().body(JobCreatedResponse.from(editJob));
+            // Editing one uploaded file moved to POST /api/edit; several files (generation) stay here.
+            return JobController.deprecated("POST /api/chat/with-file (one file)", ResponseEntity.accepted().body(JobCreatedResponse.from(editJob)));
         } catch (BudgetExceededException e) {
             return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(ErrorResponse.of(e.getMessage()));
         } catch (IllegalArgumentException | IllegalStateException e) {

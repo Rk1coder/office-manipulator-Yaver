@@ -105,11 +105,24 @@ class DatabaseIntegrationTest {
   awaitState(id,JobStatus.DONE);assertEquals(0,new BigDecimal("0.03").compareTo(jobs.findById(id).orElseThrow().getCostUsd()));
   var preview=http.getForObject("/api/files/"+id+"/preview",com.fasterxml.jackson.databind.node.ObjectNode.class);
   ((com.fasterxml.jackson.databind.node.ArrayNode)preview.path("csvRows").get(1)).set(0,"LATEST_EDIT");
-  var patched=http.exchange("/api/jobs/"+id+"/content",HttpMethod.PATCH,new HttpEntity<>(preview),com.fasterxml.jackson.databind.JsonNode.class);
+  // Old route: still works, and tells clients where to move.
+  var patched=http.postForEntity("/api/jobs/"+id+"/edit",Map.of("content",preview),com.fasterxml.jackson.databind.JsonNode.class);
   assertEquals(HttpStatus.ACCEPTED,patched.getStatusCode());UUID current=UUID.fromString(patched.getBody().path("jobId").asText());awaitState(current,JobStatus.DONE);
-  var converted=http.postForEntity("/api/jobs/"+current+"/convert",Map.of("format","pdf"),com.fasterxml.jackson.databind.JsonNode.class);
-  assertEquals(HttpStatus.ACCEPTED,converted.getStatusCode());UUID pdfId=UUID.fromString(converted.getBody().path("jobId").asText());awaitState(pdfId,JobStatus.DONE);
+  assertEquals("true",patched.getHeaders().getFirst("Deprecation"));assertEquals("</api/edit>; rel=\"successor-version\"",patched.getHeaders().getFirst("Link"));
+  assertNotNull(patched.getHeaders().getFirst("Sunset"));
+  var converted=http.postForEntity("/api/edit",Map.of("jobId",current,"instruction","PDF olarak ver","format","pdf"),com.fasterxml.jackson.databind.JsonNode.class);
+  assertEquals(HttpStatus.ACCEPTED,converted.getStatusCode());assertNull(converted.getHeaders().getFirst("Deprecation"));
+  UUID pdfId=UUID.fromString(converted.getBody().path("jobId").asText());awaitState(pdfId,JobStatus.DONE);
   var file=http.getForEntity("/api/files/"+pdfId+"/download",byte[].class);assertEquals(HttpStatus.OK,file.getStatusCode());assertTrue(file.getBody().length>100);
+  // An uploaded file goes through the same endpoint.
+  var csv=http.getForEntity("/api/files/"+current+"/download",byte[].class).getBody();
+  var upload=new org.springframework.util.LinkedMultiValueMap<String,Object>();
+  upload.add("file",new org.springframework.core.io.ByteArrayResource(csv){@Override public String getFilename(){return "yuklenen.csv";}});
+  upload.add("instruction","PDF olarak ver");upload.add("format","pdf");
+  var uploaded=http.postForEntity("/api/edit",upload,com.fasterxml.jackson.databind.JsonNode.class);
+  assertEquals(HttpStatus.ACCEPTED,uploaded.getStatusCode(),String.valueOf(uploaded.getBody()));
+  awaitState(UUID.fromString(uploaded.getBody().path("jobId").asText()),JobStatus.DONE);
+  assertEquals(HttpStatus.BAD_REQUEST,http.postForEntity("/api/edit",Map.of("format","pdf"),String.class).getStatusCode(),"jobId or a file is required");
  }
  void awaitState(UUID id,JobStatus expected) throws Exception {
   long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
@@ -121,8 +134,8 @@ class DatabaseIntegrationTest {
   HttpHeaders cross=new HttpHeaders();cross.setOrigin("https://attacker.example");
   assertEquals(HttpStatus.FORBIDDEN,http.exchange("/api/budget",HttpMethod.GET,new HttpEntity<>(cross),String.class).getStatusCode());
   HttpHeaders local=new HttpHeaders();local.setContentType(MediaType.APPLICATION_JSON);
-  // A missing job returns 404 rather than a CORS/method error for PATCH.
-  var response=http.exchange("/api/jobs/"+UUID.randomUUID()+"/content",HttpMethod.PATCH,new HttpEntity<>("{}",local),String.class);
+  // A missing job returns 404 rather than a CORS/method error for a same-origin content save.
+  var response=http.exchange("/api/edit",HttpMethod.POST,new HttpEntity<>("{\"jobId\":\""+UUID.randomUUID()+"\",\"content\":{}}",local),String.class);
   assertEquals(HttpStatus.NOT_FOUND,response.getStatusCode());
  }
 }

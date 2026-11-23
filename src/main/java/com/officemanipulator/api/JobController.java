@@ -96,24 +96,103 @@ public class JobController {
     }
 
 
-    @PostMapping("/jobs/{id}/edit")
-    public ResponseEntity<?> editJob(
-            @PathVariable UUID id,
-            @RequestBody Map<String, String> body
-    ) {
-        com.officemanipulator.llm.LlmSelection override;
-        try { override = takeOverride(body); }
+    /** The day the deprecated edit routes below stop working (HTTP Sunset header). */
+    static final String SUNSET = "Tue, 1 Jun 2027 00:00:00 GMT";
+
+    /**
+     * The one edit endpoint. The document is {"jobId"} (JSON) or an uploaded "file" (multipart, other
+     * fields as form fields), and the fields pick the kind of edit:
+     * {"instruction"[, "selectedText"][, "format"]} AI edit (template kept when possible: text changes,
+     * new pages anywhere, topic changes with new pictures), {"fragment", "instruction"} one fragment
+     * rewritten and returned inline, {"content"} the visual editor's text saved into the original file,
+     * {"format"} alone: conversion to another format.
+     */
+    @PostMapping(value = "/edit", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> edit(@RequestBody Map<String, Object> body) {
+        UUID id;
+        try { id = UUID.fromString(String.valueOf(body.remove("jobId"))); }
+        catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", "jobId is required (or upload a file)")); }
+        return edit(id, body);
+    }
+
+    @PostMapping(value = "/edit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> editUpload(@RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+                                        @RequestParam Map<String, String> fields) {
+        if (file.isEmpty() || file.getSize() > com.officemanipulator.office.OfficeDocumentClient.MAX_BYTES)
+            return ResponseEntity.status(413).body(Map.of("error", "Belge boş olamaz ve en fazla 100 MB olabilir"));
+        Job source;
+        try { source = jobService.importSourceDocument(file.getOriginalFilename(), file.getBytes()); }
         catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", e.getMessage())); }
-        String instruction   = body.get("instruction");
-        String selectedText  = body.get("selectedText");
+        catch (java.io.IOException e) { return ResponseEntity.badRequest().body(Map.of("error", "Belge okunamadı")); }
+        Map<String, Object> body = new java.util.HashMap<>(fields);
+        body.remove("jobId");
+        return edit(source.getId(), body);
+    }
+
+    @Deprecated
+    @PostMapping("/jobs/{id}/edit")
+    public ResponseEntity<?> editLegacy(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        return deprecated("POST /api/jobs/{id}/edit", edit(id, body));
+    }
+
+    @Deprecated
+    @PostMapping("/jobs/{id}/edit-fragment")
+    public ResponseEntity<?> editFragmentLegacy(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        return deprecated("POST /api/jobs/{id}/edit-fragment", edit(id, body));
+    }
+
+    @Deprecated
+    @PatchMapping("/jobs/{id}/content")
+    public ResponseEntity<?> patchContentLegacy(@PathVariable UUID id, @RequestBody Map<String, Object> preview) {
+        return deprecated("PATCH /api/jobs/{id}/content", edit(id, new java.util.HashMap<>(Map.of("content", preview))));
+    }
+
+    @Deprecated
+    @PostMapping("/jobs/{id}/convert")
+    public ResponseEntity<?> convertLegacy(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        body.remove("instruction");
+        return deprecated("POST /api/jobs/{id}/convert", edit(id, body));
+    }
+
+    /** Same answer plus the standard deprecation headers, so API clients see where to move. */
+    static ResponseEntity<?> deprecated(String route, ResponseEntity<?> response) {
+        org.slf4j.LoggerFactory.getLogger(JobController.class).warn("Deprecated edit route {} called; use POST /api/edit (until {})", route, SUNSET);
+        return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders())
+                .header("Deprecation", "true").header("Sunset", SUNSET)
+                .header("Link", "</api/edit>; rel=\"successor-version\"")
+                .body(response.getBody());
+    }
+
+    private ResponseEntity<?> edit(UUID id, Map<String, Object> body) {
+        if (body.get("fragment") != null) return editFragment(id, body);
+        if (body.get("content") != null) {
+            if (!(body.get("content") instanceof Map<?, ?> content)) return ResponseEntity.badRequest().body(Map.of("error", "content must be an object"));
+            @SuppressWarnings("unchecked") Map<String, Object> preview = new java.util.LinkedHashMap<>((Map<String, Object>) content);
+            for (String key : List.of("llm_provider", "llm_api_key", "llm_model")) if (body.containsKey(key)) preview.put(key, body.get(key));
+            return patchContent(id, preview);
+        }
+        if (body.get("instruction") == null && body.get("format") instanceof String format) return convert(id, format);
+        return editJob(id, body);
+    }
+
+    private ResponseEntity<?> editJob(UUID id, Map<String, Object> body) {
+        com.officemanipulator.llm.LlmSelection override;
+        com.officemanipulator.domain.OutputFormat target = null;
+        try {
+            override = takeOverride(body);
+            if (body.get("format") instanceof String format && !format.isBlank())
+                target = com.officemanipulator.domain.OutputFormat.valueOf(format.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", e.getMessage())); }
+        String instruction   = body.get("instruction") instanceof String text ? text : null;
+        String selectedText  = body.get("selectedText") instanceof String text ? text : null;
         if (instruction == null || instruction.isBlank() || instruction.length() > 10000 || (selectedText != null && selectedText.length() > 81920)) {
             return ResponseEntity.badRequest().body(Map.of("error", "instruction is required"));
         }
         try {
-            Job editJob = documentEditService.createEditJob(id, instruction, selectedText);
+            Job editJob = documentEditService.createEditJob(id, instruction, selectedText, target);
             if (llm != null) llm.bindJob(editJob.getId(), override);
             documentEditService.processEditAsync(editJob.getId(), id);
-            return ResponseEntity.accepted().body(Map.of("jobId", editJob.getId().toString()));
+            return ResponseEntity.accepted().body(Map.of("jobId", editJob.getId().toString(), "format", editJob.getFormat().name()));
         } catch (com.officemanipulator.exception.JobNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (com.officemanipulator.exception.BudgetExceededException e) {
@@ -179,11 +258,7 @@ public class JobController {
         }
     }
 
-    @PostMapping("/jobs/{id}/edit-fragment")
-    public ResponseEntity<?> editFragment(
-            @PathVariable UUID id,
-            @RequestBody Map<String, Object> body
-    ) {
+    private ResponseEntity<?> editFragment(UUID id, Map<String, Object> body) {
         com.officemanipulator.llm.LlmSelection override;
         try { override = takeOverride(body); }
         catch (IllegalArgumentException e) { return ResponseEntity.badRequest().body(Map.of("error", e.getMessage())); }
@@ -219,11 +294,7 @@ public class JobController {
         }
     }
 
-    @PatchMapping("/jobs/{id}/content")
-    public ResponseEntity<?> patchContent(
-            @PathVariable UUID id,
-            @RequestBody Map<String, Object> patchedPreviewData
-    ) {
+    private ResponseEntity<?> patchContent(UUID id, Map<String, Object> patchedPreviewData) {
         try {
             var override = takeOverride(patchedPreviewData);
             Job rebuildJob = documentEditService.createRebuildJob(id, patchedPreviewData);
@@ -243,10 +314,9 @@ public class JobController {
         }
     }
 
-    @PostMapping("/jobs/{id}/convert")
-    public ResponseEntity<?> convert(@PathVariable UUID id, @RequestBody Map<String,String> body) {
+    private ResponseEntity<?> convert(UUID id, String targetFormat) {
         try {
-            var format = com.officemanipulator.domain.OutputFormat.valueOf(body.getOrDefault("format", "").toUpperCase(java.util.Locale.ROOT));
+            var format = com.officemanipulator.domain.OutputFormat.valueOf(targetFormat.toUpperCase(java.util.Locale.ROOT));
             Job job = documentEditService.createConversionJob(id, format);
             documentEditService.processConversionAsync(job.getId(), id);
             return ResponseEntity.accepted().body(Map.of("jobId", job.getId().toString()));

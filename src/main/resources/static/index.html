@@ -1730,7 +1730,7 @@ class Component extends DCLogic {
       if (onDone) onDone(err);
     };
     this.setState(st => ({ wysiwyg: { ...st.wysiwyg, saving: true } }));
-    fetch('/api/jobs/' + s.job.id + '/content', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    fetch('/api/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: s.job.id, content: payload }) })
       .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Save failed'); }))
       .then(data => {
         if (epoch !== this.epoch) return;
@@ -2194,7 +2194,7 @@ class Component extends DCLogic {
     if (!s.job || !s.job.id || s.job.status !== 'DONE' || s.converting) return;
     if (s.wysiwyg.dirty || s.wysiwyg.saving || s.agentBusy) { this.showToast(this.L() === 'tr' ? 'Dönüştürmeden önce değişiklikleri kaydedin ve işlemin bitmesini bekleyin.' : 'Save changes and wait for editing to finish before converting.'); return; }
     this.setState({ converting: true });
-    fetch('/api/jobs/' + s.job.id + '/convert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format }) })
+    fetch('/api/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: s.job.id, format }) })
       .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Conversion failed'); }))
       .then(data => { if (epoch === this.epoch) { this.setState({ converting: false }); this.resumeJob(data.jobId); } })
       .catch(err => { if (epoch === this.epoch) { this.setState({ converting: false }); this.showToast(err.message); } });
@@ -2250,7 +2250,7 @@ class Component extends DCLogic {
     });
   }
   onChatFileSelected(e) {
-    // Several files: one new document is generated from all of them (POST /api/chat/with-file, repeated "file").
+    // One file: edited through POST /api/edit. Several files: one new document is generated from all of them (POST /api/chat/with-file).
     const files = Array.from((e.target.files) || []);
     if (files.length) this.setState({ attachedFile: files, attachedFileName: files.map(f => f.name).join(', ') });
     e.target.value = '';
@@ -2269,17 +2269,17 @@ class Component extends DCLogic {
       job: { id: null, format: fmt || 'AUTO', reason: this.L() === 'tr' ? 'Yüklenen belgeden' : 'From uploaded file', request, origin: 'file', srcText: '',
         status: 'PENDING', times: { PENDING: '+0.0s' }, logs: [{ t: at(), text: (this.L() === 'tr' ? 'Yükleniyor: ' : 'Uploading: ') + names }], t0, live: true } });
     this.tick = setInterval(() => this.setState({ now: Date.now() }), 120);
-    const body = new FormData();
+    const body = new FormData(), single = files.length === 1, url = single ? '/api/edit' : '/api/chat/with-file';
     files.forEach(f => body.append('file', f));
-    body.append('message', request);
+    body.append(single ? 'instruction' : 'message', request);
     if (fmt) body.append('format', fmt);
-    fetch('/api/chat/with-file', { method: 'POST', body }).then(r => {
+    fetch(url, { method: 'POST', body }).then(r => {
       if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'Request failed'); });
       return r.json();
     }).then(data => {
       if (epoch !== this.epoch) return;
       const jobId = data.jobId;
-      this.patch(j => ({ ...j, id: jobId, logs: [...j.logs, { t: at(), text: 'POST /api/chat/with-file → 202 Accepted' }] }));
+      this.patch(j => ({ ...j, id: jobId, logs: [...j.logs, { t: at(), text: 'POST ' + url + ' → 202 Accepted' }] }));
       this.attachJobStream(jobId, fmt || data.format, request, t0);
     }).catch(err => {
       if (epoch !== this.epoch) return;
@@ -2460,9 +2460,9 @@ class Component extends DCLogic {
     if (!this.previewMatchesJob() || this.state.wysiwyg.saving || this.state.agentBusy) return;
     const L = this.L(), id = Date.now(), epoch = this.epoch;
     this.setState(st => ({ chat: [...st.chat, { id, role: 'user', text, refs: label ? [label] : [] }], agentInput: '', agentBusy: true, sel: [], selTxt: '' }));
-    fetch('/api/jobs/' + this.state.job.id + '/edit-fragment', {
+    fetch('/api/edit', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fragment: target.fragment, instruction: text })
+      body: JSON.stringify({ jobId: this.state.job.id, fragment: target.fragment, instruction: text })
     }).then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Edit failed'); }))
       .then(res => {
         if (epoch !== this.epoch) return;
@@ -2502,10 +2502,10 @@ class Component extends DCLogic {
       const selectionContext = s.selTxt || (refs.length ? refs.map(r => r.label).join(', ') : null);
       const id = Date.now();
       this.setState(st => ({ chat: [...st.chat, { id, role: 'user', text, refs: selectionContext ? [selectionContext] : [] }], agentInput: '', agentBusy: true, sel: [], selTxt: '' }));
-      fetch('/api/jobs/' + s.job.id + '/edit', {
+      fetch('/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction: text, selectedText: selectionContext || null })
+        body: JSON.stringify({ jobId: s.job.id, instruction: text, selectedText: selectionContext || null })
       }).then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Edit failed'); }))
       .then(data => {
         if (epoch !== this.epoch) return;

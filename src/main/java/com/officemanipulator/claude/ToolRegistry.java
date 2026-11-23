@@ -112,14 +112,24 @@ public class ToolRegistry {
         Map<String, Object> change = Map.of("type", "object",
                 "properties", Map.of("id", Map.of("type", "string"), "text", Map.of("type", "string")),
                 "required", List.of("id", "text"), "additionalProperties", false);
+        Map<String, Object> page = Map.of("type", "object",
+                "properties", Map.of("after", Map.of("type", "string"),
+                        "title", Map.of("type", "string"),
+                        "bullets", Map.of("type", "array", "items", Map.of("type", "string"))),
+                "required", List.of("after", "title", "bullets"), "additionalProperties", false);
+        Map<String, Object> image = Map.of("type", "object",
+                "properties", Map.of("id", Map.of("type", "string"), "prompt", Map.of("type", "string")),
+                "required", List.of("id", "prompt"), "additionalProperties", false);
         Map<String, Object> properties = Map.of(
                 "radical", Map.of("type", "boolean"),
                 "reason", Map.of("type", "string"),
-                "changes", Map.of("type", "array", "items", change));
+                "changes", Map.of("type", "array", "items", change),
+                "newPages", Map.of("type", "array", "items", page),
+                "images", Map.of("type", "array", "items", image));
         var builder = Tool.InputSchema.Properties.builder();
         properties.forEach((key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)));
         return toLlm(Tool.builder().name("submit_template_edit")
-                .description("Submit the changed text slots (id + full new text), or radical=true with no changes when the edit needs structural changes.")
+                .description("Submit the changed text slots (id + full new text), new pages to add, pictures to replace (id + image prompt), or radical=true with nothing else when the edit needs other structural changes.")
                 .strict(true)
                 .inputSchema(Tool.InputSchema.builder().properties(builder.build()).required(List.copyOf(properties.keySet()))
                         .putAdditionalProperty("additionalProperties", JsonValue.from(false)).build())

@@ -103,7 +103,7 @@ class AuditRegressionTest {
   JobService jobs=mock(JobService.class);ClaudeOrchestrator o=mock(ClaudeOrchestrator.class);
   when(o.runFragmentEdit(any(Job.class),anyString(),anyString())).thenReturn("{\"text\":\"ok\"}");
   JobController c=new JobController(jobs,mock(BudgetService.class),mock(DocumentEditService.class),mock(PlanningService.class),mapper,o);
-  var response=c.editFragment(UUID.randomUUID(),Map.of("fragment",Map.of("text","x"),"instruction","audit"));
+  var response=c.edit(new java.util.HashMap<>(Map.of("jobId",UUID.randomUUID().toString(),"fragment",Map.of("text","x"),"instruction","audit")));
   assertEquals(404,response.getStatusCode().value(),"Unknown job invokes paid fragment API and returns success");
  }
  @Test void csvEditMustPreserveRowsOutsidePreview() throws Exception {

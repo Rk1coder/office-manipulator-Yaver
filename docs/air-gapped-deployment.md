@@ -100,11 +100,10 @@ Tüm uçlar `app` servisi (varsayılan `http://localhost:8081`) üzerinden sunul
 | `GET /api/jobs` | İş geçmişi | Hayır |
 | `GET /api/jobs/{id}` | İş durumu/detayı | Hayır |
 | `GET /api/jobs/{id}/events` | İş durumu için SSE akışı | Hayır |
-| `POST /api/jobs/{id}/edit` | Mevcut belgeyi talimatla düzenle | Evet |
-| `POST /api/jobs/{id}/edit-fragment` | Belge içinde küçük bir parçayı düzenle | Evet |
+| `POST /api/edit` | Tek düzenleme ucu. Belge `{"jobId"}` (JSON) ya da yüklenen `file` (multipart) ile verilir. `instruction`: talimatla düzenle (şablon korunur; araya/başa/sona sayfa ekleme, konu değiştirme ve resimlerin yenilenmesi dahil). `fragment`+`instruction`: küçük bir parçayı düzenle. `content`: görsel editördeki metni kaydet. Yalnız `format`: başka formata çevir | Talimat ve parça için evet, kaydetme ve dönüştürme için hayır |
+| `POST /api/jobs/{id}/edit`, `/edit-fragment`, `/convert`, `PATCH /api/jobs/{id}/content` | Eskiyen yollar: `/api/edit` ile aynı işi yapar, yanıtta `Deprecation`, `Sunset` (1 Haziran 2027) ve `Link` başlıkları döner | — |
 | `POST /api/jobs/{id}/cancel` | İşi iptal et | Hayır |
 | `GET /api/jobs/{id}/plan`, `POST /api/jobs/{id}/plan/confirm` | Üretim planını görüntüle/onayla | Evet |
-| `POST /api/jobs/{id}/convert` | Üretilen belgeyi başka formata çevir | Hayır |
 | `GET /api/budget` | Bütçe/kullanım durumu | Hayır |
 | `GET /api/files/{jobId}/download` | Üretilen/yüklenen dosyayı indir | Hayır |
 | `GET /api/files/{jobId}/preview` | Belge önizlemesi | Hayır |

@@ -29,6 +29,7 @@ class TemplateEditTest {
         assertEquals("Yeni", TemplateEdit.slots(patched).get("blocks/0/text"));
         assertEquals("x", TemplateEdit.slots(patched).get("blocks/1/rows/1/0"));
         assertEquals("Başlık", TemplateEdit.slots(original).get("blocks/0/text"), "original must not change");
+        assertEquals("Köşeli", TemplateEdit.slots(TemplateEdit.apply(original, Map.of("[blocks/0/text]", "Köşeli"))).get("blocks/0/text"));
         for (String bad : new String[]{"blocks/0/type", "blocks/2/text", "blocks/1/rows/2/0", "../x"}) {
             assertThrows(IllegalArgumentException.class, () -> TemplateEdit.apply(original, Map.of(bad, "z")), bad);
         }

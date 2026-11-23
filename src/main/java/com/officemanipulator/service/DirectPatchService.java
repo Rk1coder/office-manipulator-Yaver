@@ -345,4 +345,219 @@ public class DirectPatchService {
         }
     }
 
+
+    /** "slides/{s}/image/{k}" → where the k-th picture of slide s sits; empty for anything but PPTX. */
+    public Map<String, String> pictures(Path file, String type) throws IOException {
+        Map<String, String> pictures = new java.util.LinkedHashMap<>();
+        if (!"pptx".equals(type)) return pictures;
+        try (var in = Files.newInputStream(file); var pptx = new XMLSlideShow(in)) {
+            var slides = pptx.getSlides();
+            for (int s = 0; s < slides.size(); s++) {
+                int k = 0;
+                for (XSLFShape shape : slides.get(s).getShapes())
+                    if (shape instanceof XSLFPictureShape) pictures.put("slides/" + s + "/image/" + k++, "picture on slide " + (s + 1));
+            }
+        }
+        return pictures;
+    }
+
+    /**
+     * Swaps the pictures named by {@link #pictures} ids for new PNGs, in place. Each new picture keeps
+     * the old frame (position, size, effects) and is centre-cropped to it instead of being stretched.
+     */
+    public void replacePictures(Path file, Map<String, Path> replacements) throws IOException {
+        if (replacements.isEmpty()) return;
+        XMLSlideShow pptx;
+        try (var in = Files.newInputStream(file)) { pptx = new XMLSlideShow(in); }
+        try (pptx) {
+            var slides = pptx.getSlides();
+            for (var entry : replacements.entrySet()) {
+                String[] id = entry.getKey().split("/");
+                XSLFSlide slide = slides.get(Integer.parseInt(id[1]));
+                var picture = (XSLFPictureShape) slide.getShapes().stream().filter(XSLFPictureShape.class::isInstance)
+                        .skip(Integer.parseInt(id[3])).findFirst().orElseThrow(() -> new IllegalArgumentException("Bilinmeyen resim: " + entry.getKey()));
+                byte[] png = Files.readAllBytes(entry.getValue());
+                var data = pptx.addPicture(png, org.apache.poi.sl.usermodel.PictureData.PictureType.PNG);
+                var fill = ((org.openxmlformats.schemas.presentationml.x2006.main.CTPicture) picture.getXmlObject()).getBlipFill();
+                fill.getBlip().setEmbed(slide.addRelation(null, XSLFRelation.IMAGES, data).getRelationship().getId());
+                if (fill.isSetSrcRect()) fill.unsetSrcRect();
+                var size = data.getImageDimension();
+                var frame = picture.getAnchor();
+                double keep = (frame.getWidth() / frame.getHeight()) / ((double) size.width / size.height);
+                var crop = fill.addNewSrcRect();
+                int cut = (int) Math.round((1 - Math.min(keep, 1 / keep)) / 2 * 100_000);
+                if (keep < 1) { crop.setL(cut); crop.setR(cut); } else { crop.setT(cut); crop.setB(cut); }
+            }
+            try (OutputStream os = Files.newOutputStream(file)) { pptx.write(os); }
+        }
+    }
+
+    /** A page the template edit adds: a heading plus bullet lines, placed after slide/block {@code after} (0-based) or, when -1, at the end. */
+    public record NewPage(int after, String title, List<String> bullets) {}
+
+    /**
+     * Adds {@code pages} to {@code file} in place, styled like the document's own pages: a PPTX slide
+     * is a copy of an existing title+text slide with its own text replaced (pictures, tables and other
+     * text boxes dropped); DOCX paragraphs copy an existing heading's and list item's formatting.
+     * Throws IllegalArgumentException when the document has nothing to copy the look from.
+     */
+    public void addPages(Path file, String type, List<NewPage> pages) throws IOException {
+        if (pages.isEmpty()) return;
+        switch (type) {
+            case "pptx" -> addSlides(file, pages);
+            case "docx" -> addDocxSections(file, pages);
+            default -> throw new IllegalArgumentException("Bu biçime şablon korunarak sayfa eklenemiyor: " + type);
+        }
+    }
+
+    private void addSlides(Path file, List<NewPage> pages) throws IOException {
+        XMLSlideShow pptx;
+        try (var in = Files.newInputStream(file)) { pptx = new XMLSlideShow(in); }
+        try (pptx) {
+            List<XSLFSlide> slides = pptx.getSlides();
+            // The slide with the biggest text box under a title is the best model for a summary-style page.
+            XSLFSlide model = null; double bestArea = 0;
+            for (int i = slides.size() > 1 ? 1 : 0; i < slides.size(); i++) {
+                var parts = titleAndBody(slides.get(i));
+                if (parts == null) continue;
+                double area = parts[1].getAnchor().getWidth() * parts[1].getAnchor().getHeight();
+                if (area > bestArea) { bestArea = area; model = slides.get(i); }
+            }
+            if (model == null) throw new IllegalArgumentException("Örnek alınacak başlık + metin slaytı bulunamadı.");
+            List<XSLFSlide> originals = List.copyOf(slides);
+            Map<Integer, Integer> placedAfter = new java.util.HashMap<>();
+            for (NewPage page : pages) {
+                if (page.after() >= originals.size()) throw new IllegalArgumentException("Böyle bir slayt yok: " + (page.after() + 1));
+                XSLFSlide copy = pptx.createSlide(model.getSlideLayout());
+                copy.importContent(model);
+                var parts = titleAndBody(copy);
+                boolean pictureRemoved = false;
+                for (XSLFShape shape : List.copyOf(copy.getShapes())) {
+                    boolean extraText = shape instanceof XSLFTextShape ts && ts != parts[0] && ts != parts[1] && !ts.getText().isBlank();
+                    boolean visual = shape instanceof XSLFPictureShape || shape instanceof XSLFGraphicFrame;
+                    if (extraText || visual) copy.removeShape(shape);
+                    pictureRemoved |= visual;
+                }
+                // The text sat beside a picture; without it, let the text use the title's width.
+                if (pictureRemoved) {
+                    var title = parts[0].getAnchor(); var body = parts[1].getAnchor();
+                    parts[1].setAnchor(new java.awt.geom.Rectangle2D.Double(title.getX(), body.getY(), title.getWidth(), body.getHeight()));
+                }
+                fillLines(parts[0], List.of(page.title()));
+                fillLines(parts[1], page.bullets().isEmpty() ? List.of("") : page.bullets());
+                if (page.after() >= 0) {
+                    // Several pages after the same slide keep the order they were given in.
+                    int earlier = placedAfter.merge(page.after(), 1, Integer::sum) - 1;
+                    pptx.setSlideOrder(copy, pptx.getSlides().indexOf(originals.get(page.after())) + 1 + earlier);
+                }
+            }
+            try (OutputStream os = Files.newOutputStream(file)) { pptx.write(os); }
+        }
+    }
+
+    /**
+     * {title shape, largest other text shape} of a slide, or null. Title detection mirrors patchPptx;
+     * without a named title (generated decks name shapes "Text 0", "Text 1") the first text shape is the title.
+     */
+    private static XSLFTextShape[] titleAndBody(XSLFSlide slide) {
+        XSLFTextShape title = null;
+        List<XSLFTextShape> texts = new java.util.ArrayList<>();
+        for (XSLFShape shape : slide.getShapes()) {
+            if (!(shape instanceof XSLFAutoShape ts) || ts.getText().isBlank()) continue;
+            String name = ts.getShapeName() == null ? "" : ts.getShapeName().toLowerCase(java.util.Locale.ROOT);
+            if (name.contains("title") || name.equals("1")) title = ts;
+            else texts.add(ts);
+        }
+        if (title == null && !texts.isEmpty()) title = texts.removeFirst();
+        XSLFTextShape body = texts.stream().max(java.util.Comparator.comparingDouble(DirectPatchService::area)).orElse(null);
+        return title == null || body == null ? null : new XSLFTextShape[]{title, body};
+    }
+
+    private static double area(XSLFShape shape) {
+        return shape.getAnchor().getWidth() * shape.getAnchor().getHeight();
+    }
+
+    /** One paragraph per line, each a copy of the shape's first paragraph (bullet, indent, font kept). */
+    private static void fillLines(XSLFTextShape shape, List<String> lines) {
+        var body = ((org.openxmlformats.schemas.presentationml.x2006.main.CTShape) shape.getXmlObject()).getTxBody();
+        var proto = (org.openxmlformats.schemas.drawingml.x2006.main.CTTextParagraph) body.getPArray(0).copy();
+        while (proto.sizeOfFldArray() > 0) proto.removeFld(0);
+        while (proto.sizeOfBrArray() > 0) proto.removeBr(0);
+        while (proto.sizeOfRArray() > 1) proto.removeR(1);
+        if (proto.sizeOfRArray() == 0) proto.addNewR();
+        while (body.sizeOfPArray() > 0) body.removeP(0);
+        for (String line : lines) {
+            var p = body.addNewP();
+            p.set(proto);
+            p.getRArray(0).setT(line);
+        }
+    }
+
+    private void addDocxSections(Path file, List<NewPage> pages) throws IOException {
+        XWPFDocument doc;
+        try (var in = Files.newInputStream(file)) { doc = new XWPFDocument(in); }
+        try (doc) {
+            XWPFParagraph heading = null, item = null, plain = null;
+            for (XWPFParagraph p : doc.getParagraphs()) {
+                if (p.getText().isBlank()) continue;
+                String style = p.getStyleID() == null ? "" : p.getStyleID().toLowerCase(java.util.Locale.ROOT);
+                // Turkish Word names heading styles "Balk1", "Balk2"...
+                if (heading == null && (style.startsWith("heading") || style.startsWith("balk"))) heading = p;
+                else if (item == null && p.getNumID() != null) item = p;
+                else if (plain == null && (style.isEmpty() || style.equals("normal"))) plain = p;
+            }
+            if (heading == null) throw new IllegalArgumentException("Örnek alınacak başlık paragrafı bulunamadı.");
+            if (item == null) item = plain != null ? plain : heading;
+            // Block k counts non-empty paragraphs and tables, as in patchDocx and the preview.
+            var bodyElements = doc.getBodyElements();
+            List<Integer> blockAt = new java.util.ArrayList<>();
+            for (int i = 0; i < bodyElements.size(); i++)
+                if (bodyElements.get(i) instanceof XWPFTable || bodyElements.get(i) instanceof XWPFParagraph p && !p.getText().isBlank()) blockAt.add(i);
+            // Taken before inserting: the body element list shifts with every new paragraph.
+            List<org.apache.xmlbeans.XmlObject> nextAfter = blockAt.stream().map(i -> i + 1 < bodyElements.size() ? xml(bodyElements.get(i + 1)) : null).toList();
+            var sectPr = doc.getDocument().getBody().isSetSectPr() ? doc.getDocument().getBody().getSectPr() : null;
+            for (NewPage page : pages) {
+                if (page.after() >= blockAt.size()) throw new IllegalArgumentException("Böyle bir paragraf yok: " + page.after());
+                boolean atEnd = page.after() < 0 || page.after() == blockAt.size() - 1;
+                var anchor = atEnd ? sectPr : nextAfter.get(page.after());
+                if (!atEnd && anchor == null) throw new IllegalArgumentException("Bu paragraftan sonra sayfa eklenemiyor.");
+                var lines = new java.util.ArrayList<org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP>();
+                // Right after the title the new page shares the title page; elsewhere it starts a page.
+                if (page.after() != 0) lines.add(pageBreak());
+                lines.add(copyStyle(heading, page.title()));
+                for (String bullet : page.bullets()) lines.add(copyStyle(item, bullet));
+                if (!atEnd) lines.add(pageBreak());
+                for (var ctp : lines) {
+                    XWPFParagraph added = anchor == null ? doc.createParagraph() : doc.insertNewParagraph(anchor.newCursor());
+                    added.getCTP().set(ctp);
+                }
+            }
+            try (OutputStream os = Files.newOutputStream(file)) { doc.write(os); }
+        }
+    }
+
+    private static org.apache.xmlbeans.XmlObject xml(IBodyElement element) {
+        return element instanceof XWPFParagraph p ? p.getCTP() : element instanceof XWPFTable t ? t.getCTTbl() : null;
+    }
+
+    private static org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP copyStyle(XWPFParagraph model, String text) {
+        var ctp = org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP.Factory.newInstance();
+        if (model.getCTP().isSetPPr()) {
+            var ppr = (org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr) model.getCTP().getPPr().copy();
+            if (ppr.isSetSectPr()) ppr.unsetSectPr();
+            if (ppr.isSetPageBreakBefore()) ppr.unsetPageBreakBefore();
+            ctp.setPPr(ppr);
+        }
+        var run = ctp.addNewR();
+        model.getRuns().stream().filter(r -> r.getCTR().isSetRPr()).findFirst()
+                .ifPresent(r -> run.setRPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr) r.getCTR().getRPr().copy()));
+        run.addNewT().setStringValue(text);
+        return ctp;
+    }
+
+    private static org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP pageBreak() {
+        var ctp = org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP.Factory.newInstance();
+        ctp.addNewR().addNewBr().setType(org.openxmlformats.schemas.wordprocessingml.x2006.main.STBrType.PAGE);
+        return ctp;
+    }
 }
