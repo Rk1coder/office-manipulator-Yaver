@@ -125,10 +125,10 @@ Tüm uç noktalar `app` servisi üzerinden, varsayılan `http://localhost:8081`:
 |---|---|---|
 | `POST /api/chat` | Doğal dil talimatıyla belge üretim işi başlatır | Evet — anahtar yoksa 503 |
 | `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events` | İş geçmişi/durumu/SSE akışı | Hayır |
-| `POST /api/jobs/{id}/edit`, `POST /api/jobs/{id}/edit-fragment` | Mevcut belgeyi düzenleme | Evet |
+| `POST /api/edit` | Tek düzenleme ucu: `jobId` (JSON) veya yüklenen `file` (multipart); `instruction` (şablon korunarak düzenleme, sayfa ekleme, konu ve resim değiştirme), `fragment`+`instruction`, `content` (görsel editör kaydı) veya yalnız `format` (dönüştürme) | `instruction`/`fragment` için evet |
+| `POST /api/jobs/{id}/edit`, `/edit-fragment`, `/convert`, `PATCH /api/jobs/{id}/content` | Eskiyen yollar; 1 Haziran 2027'ye kadar çalışır, yanıtta `Deprecation`/`Sunset`/`Link` başlıkları vardır | — |
 | `POST /api/jobs/{id}/cancel` | İşi iptal etme | Hayır |
 | `GET /api/jobs/{id}/plan`, `POST /api/jobs/{id}/plan/confirm` | Üretim planını görüntüleme/onaylama | Evet |
-| `POST /api/jobs/{id}/convert` | Biçim dönüştürme | Hayır |
 | `GET /api/budget` | Bütçe/kullanım durumu | Hayır |
 | `GET /api/files/{jobId}/download`, `GET /api/files/{jobId}/preview` | İndirme/önizleme | Hayır |
 | `POST /api/office/import` | Mevcut belgeyi ONLYOFFICE ile düzenlemek üzere içe aktarma | Hayır |

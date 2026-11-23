@@ -50,7 +50,8 @@ final class TemplateEdit {
     static Map<String, Object> apply(Map<String, Object> preview, Map<String, String> changes) {
         Map<String, Object> copy = (Map<String, Object>) deepCopy(preview);
         Set<String> allowed = slots(preview).keySet();
-        changes.forEach((id, text) -> {
+        changes.forEach((rawId, text) -> {
+            String id = bare(rawId);
             if (!allowed.contains(id)) throw new IllegalArgumentException("Bilinmeyen metin alanı: " + id);
             String[] parts = id.split("/");
             Object parent = copy;
@@ -60,6 +61,11 @@ final class TemplateEdit {
             else ((Map<String, Object>) parent).put(last, text);
         });
         return copy;
+    }
+
+    /** Models sometimes copy the listing's "[id]" brackets into the id. */
+    static String bare(String id) {
+        return id.startsWith("[") && id.endsWith("]") ? id.substring(1, id.length() - 1) : id;
     }
 
     private static Object child(Object parent, String key) {

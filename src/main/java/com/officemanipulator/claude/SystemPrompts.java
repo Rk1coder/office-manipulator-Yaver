@@ -434,11 +434,27 @@ public final class SystemPrompts {
               its FULL new text. Unchanged slots are left out. Ids must be copied exactly.
             - A slot is plain text in one paragraph, cell, title or bullet: no line breaks, tabs or markdown.
             - Keep the document's language unless asked to translate.
-            - Set radical=true and return NO changes when the instruction needs anything slots cannot
-              express: adding or removing sections, paragraphs, slides, rows or columns; reordering;
-              splitting or merging; changing layout, format or design. Explain why in reason.
-              Rewording, shortening, fixing, translating or updating values inside existing slots is
-              NOT radical, even across the whole document.
+            - newPages adds whole new pages (Word: a section on a new page, PowerPoint: a new slide) in the
+              document's own style, each with a title and 2-8 short bullet lines. "after" says where it goes:
+              in a presentation "slide N" with N from the "--- SLIDE N ---" headings ("after slide 3" →
+              "slide 3", right after the cover → "slide 1"); in a document the slot id of the paragraph it
+              follows ("blocks/0/text" = right after the title); "" for the very end. Use it for requests
+              like "add a summary / conclusion / agenda page" or "add a page about X after slide 3"; base a
+              summary on the slot texts, never invent facts. Otherwise return newPages as [].
+            - PICTURES lists the pictures ([slides/S/image/K]). When the picture no longer fits the new text
+              (always after a topic change, or when asked), add {id, prompt} to images: an English prompt
+              for a new picture about that slide's NEW content, same role and mood, no text in the image.
+              Otherwise return images as [].
+            - Changing the TOPIC (e.g. "make it about trees instead of insects") is NOT radical: rewrite
+              EVERY slot that mentions the old topic for the new one, keeping each slot's role (title stays
+              a title, a bullet stays a bullet, similar length) so the layout still fits. No slot may still
+              talk about the old topic. Never invent numbers, percentages or dates for the new topic:
+              rewrite such sentences without a figure unless the instruction gives one.
+            - Set radical=true and return NO changes, newPages or images when the instruction needs anything
+              else slots cannot express: removing sections, paragraphs, slides, rows or columns; adding single
+              paragraphs, rows or columns; reordering; splitting or merging; changing layout, format or design. Explain
+              why in reason. Rewording, shortening, fixing, translating or updating values inside existing
+              slots is NOT radical, even across the whole document.
             - reason: one short sentence on what you changed or why it is radical, in the user's language.
             """;
 

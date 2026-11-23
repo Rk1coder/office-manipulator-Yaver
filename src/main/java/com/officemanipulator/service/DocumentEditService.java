@@ -49,6 +49,9 @@ public class DocumentEditService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.officemanipulator.config.LlmClientProvider llm;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GeminiImageService imageService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public DocumentEditService(
             JobRepository jobRepository,
@@ -314,7 +317,20 @@ public class DocumentEditService {
         Map<String, String> slots = TemplateEdit.slots(preview);
         if (slots.isEmpty()) return null;
         StringBuilder listing = new StringBuilder();
-        slots.forEach((id, text) -> listing.append('[').append(id).append("] ").append(text).append('\n'));
+        String[] slide = {""};
+        slots.forEach((id, text) -> {
+            // Ids count slides from 0 while people count from 1 ("after slide 3"); a heading per slide bridges that.
+            if (id.startsWith("slides/") && !id.startsWith(slide[0])) {
+                slide[0] = id.substring(0, id.indexOf('/', 7) + 1);
+                listing.append("--- SLIDE ").append(Integer.parseInt(slide[0].substring(7, slide[0].length() - 1)) + 1).append(" ---\n");
+            }
+            listing.append('[').append(id).append("] ").append(text).append('\n');
+        });
+        Map<String, String> pictures = directPatchService.pictures(Path.of(originalJob.getFilePath()), content.type());
+        if (!pictures.isEmpty()) {
+            listing.append("\nPICTURES (not text slots; replace them through images):\n");
+            pictures.forEach((id, where) -> listing.append('[').append(id).append("] ").append(where).append('\n'));
+        }
 
         var before = JobUsage.snapshot(editJob);
         com.fasterxml.jackson.databind.JsonNode edit;
@@ -329,13 +345,28 @@ public class DocumentEditService {
         }
         Map<String, String> changes = new java.util.LinkedHashMap<>();
         edit.path("changes").forEach(c -> changes.put(c.path("id").asText(), c.path("text").asText()));
-        if (edit.path("radical").asBoolean(false) || changes.isEmpty()) {
+        Map<String, String> imagePrompts = new java.util.LinkedHashMap<>();
+        edit.path("images").forEach(i -> {
+            String id = TemplateEdit.bare(i.path("id").asText());
+            if (pictures.containsKey(id) && !i.path("prompt").asText().isBlank()) imagePrompts.put(id, i.path("prompt").asText());
+        });
+        if (edit.path("radical").asBoolean(false) || (changes.isEmpty() && edit.path("newPages").isEmpty() && imagePrompts.isEmpty())) {
             log.info("Edit job {} needs a new document: {}", editJob.getId(), edit.path("reason").asText());
             return null;
         }
         Path outputPath = storageService.resolveOutputPath(editJob.getId(), editJob.getFormat());
         try {
+            List<DirectPatchService.NewPage> pages = new java.util.ArrayList<>();
+            edit.path("newPages").forEach(p -> {
+                List<String> bullets = new java.util.ArrayList<>();
+                p.path("bullets").forEach(b -> { if (!b.asText().isBlank()) bullets.add(oneLine(b.asText())); });
+                pages.add(new DirectPatchService.NewPage(pageIndex(p.path("after").asText()), oneLine(p.path("title").asText()), bullets));
+            });
+            if (!pages.isEmpty()) log.info("Edit job {} adds pages after {}", editJob.getId(), edit.path("newPages").findValuesAsText("after"));
             directPatchService.applyPatch(Path.of(originalJob.getFilePath()), outputPath, content.type(), TemplateEdit.apply(preview, changes));
+            // Before addPages: picture ids count the original slides, which new slides would shift.
+            directPatchService.replacePictures(outputPath, newPictures(editJob, imagePrompts));
+            directPatchService.addPages(outputPath, content.type(), pages);
             return outputPath;
         } catch (IllegalArgumentException e) {
             // Unknown slot or text the original's runs can't take without losing formatting.
@@ -343,6 +374,50 @@ public class DocumentEditService {
             java.nio.file.Files.deleteIfExists(outputPath);
             return null;
         }
+    }
+
+    /** 0-based slide/block index of "after": "slide 3" → 2, a slot id ("blocks/5/text" → 5); -1 (end) when blank. */
+    static int pageIndex(String after) {
+        String id = TemplateEdit.bare(after.strip());
+        if (id.isEmpty() || id.equals("end")) return -1;
+        var slide = java.util.regex.Pattern.compile("(?i)slide\\s*(\\d+)").matcher(id);
+        // "slide 0" comes from models mixing 0-based ids with slide numbers; they mean the cover.
+        if (slide.matches()) return Math.max(0, Integer.parseInt(slide.group(1)) - 1);
+        var match = java.util.regex.Pattern.compile("(?:slides|blocks)/(\\d+)(?:/.*)?").matcher(id);
+        if (!match.matches()) throw new IllegalArgumentException("Yeni sayfanın yeri anlaşılamadı: " + after);
+        return Integer.parseInt(match.group(1));
+    }
+
+    /**
+     * Generates the replacement pictures; one that fails (or image generation being off) keeps the
+     * old picture. The image service bills the job row directly, so that usage is copied onto editJob.
+     */
+    private Map<String, Path> newPictures(Job editJob, Map<String, String> prompts) {
+        Map<String, Path> made = new java.util.LinkedHashMap<>();
+        if (prompts.isEmpty()) return made;
+        if (imageService == null || !imageService.isEnabled()) {
+            log.warn("Edit job {}: image generation is off, {} picture(s) keep their old image", editJob.getId(), prompts.size());
+            return made;
+        }
+        var billedBefore = JobUsage.snapshot(jobRepository.findById(editJob.getId()).orElseThrow());
+        int index = 1;
+        for (var entry : prompts.entrySet()) {
+            try {
+                imageService.generateImage(entry.getValue() + " No text or letters in the image.", editJob.getId(), String.valueOf(index++))
+                        .ifPresent(path -> made.put(entry.getKey(), path));
+            } catch (RuntimeException e) {
+                if (Thread.currentThread().isInterrupted()) throw e;
+                log.warn("Edit job {} picture {} kept: {}", editJob.getId(), entry.getKey(), e.getMessage());
+            }
+        }
+        var billedAfter = JobUsage.snapshot(jobRepository.findById(editJob.getId()).orElseThrow());
+        JobUsage.snapshot(editJob).apply(editJob, billedAfter.input() - billedBefore.input(),
+                billedAfter.output() - billedBefore.output(), billedAfter.cost().subtract(billedBefore.cost()));
+        return made;
+    }
+
+    private static String oneLine(String text) {
+        return text.replaceAll("\\s+", " ").strip();
     }
 
     public Job createConversionJob(UUID originalId, OutputFormat target) {

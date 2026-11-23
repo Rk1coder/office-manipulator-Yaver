@@ -93,7 +93,7 @@ class BackendLifecycleTest {
   JobService jobs=mock(JobService.class);when(jobs.findById(j.getId())).thenReturn(Optional.of(j));
   ClaudeOrchestrator ai=mock(ClaudeOrchestrator.class);when(ai.runFragmentEdit(eq(j),anyString(),anyString())).thenAnswer(a->{JobUsage.snapshot(j).apply(j,10,20,new BigDecimal("0.02"));return "invalid";});
   JobController api=new JobController(jobs,mock(BudgetService.class),mock(DocumentEditService.class),mock(PlanningService.class),mapper,ai);
-  assertEquals(500,api.editFragment(j.getId(),Map.of("fragment",Map.of("text","hello"),"instruction","edit")).getStatusCode().value());
+  assertEquals(500,api.edit(new java.util.HashMap<>(Map.of("jobId",j.getId().toString(),"fragment",Map.of("text","hello"),"instruction","edit"))).getStatusCode().value());
   verify(jobs).recordFragmentUsage(eq(j.getId()),any(),eq(j));
  }
 }
