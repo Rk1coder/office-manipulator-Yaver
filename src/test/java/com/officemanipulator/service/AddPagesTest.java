@@ -127,6 +127,7 @@ class AddPagesTest {
         try (var pptx = new XMLSlideShow(Files.newInputStream(file))) {
             var picture = (XSLFPictureShape) pptx.getSlides().getFirst().getShapes().getFirst();
             assertEquals(100, picture.getPictureData().getImageDimensionInPixels().width, "the new image is shown");
+            assertEquals(org.apache.poi.sl.usermodel.PictureData.PictureType.JPEG, picture.getPictureData().getType(), "opaque photos are stored as JPEG");
             assertEquals(new java.awt.Rectangle(50, 60, 300, 100), picture.getAnchor().getBounds(), "frame unchanged");
             var crop = ((org.openxmlformats.schemas.presentationml.x2006.main.CTPicture) picture.getXmlObject()).getBlipFill().getSrcRect();
             assertEquals(33_333, crop.getT(), "square image cropped top and bottom to fit a 3:1 frame");

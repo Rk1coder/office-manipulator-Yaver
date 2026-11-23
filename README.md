@@ -217,10 +217,13 @@ OPENAI_COMPATIBLE_MODEL=Qwen/Qwen2.5-72B-Instruct
 ```bash
 GEMINI_ENABLED=true
 IMAGE_OPENAI_COMPATIBLE_BASE_URL=https://nano-gpt.com/api/v1   # anahtar OPENAI_COMPATIBLE_API_KEY'den alınır
+# GEMINI_API_KEY=<anahtar>                                      # görseller başka hesaptan ödenecekse ayrı anahtar
 IMAGE_API_STYLE=images                                          # /images/generations (FLUX, Seedream, GPT Image…)
 GEMINI_IMAGE_MODEL=blackforestlabs/flux-3/klein/text-to-image
-IMAGE_PRICE_PER_IMAGE=0.008
+IMAGE_PRICE_PER_IMAGE=0.009                                     # 23 Kasım 2026 NanoGPT fiyatı (1024×1024)
 ```
+
+Aynı ayar, bir sunumun konusu değiştirildiğinde eski resimlerin yerine yenilerini üretmek için de kullanılır. Yeni resimler eskisinin çerçevesine kırpılarak yerleşir ve şeffaflık yoksa JPEG olarak saklanır (resim başı yaklaşık 2,5 MB yerine birkaç yüz KB). Görsel üretimi kapalıysa ya da bakiye yetmezse eski resimler kalır.
 
 **Notlar:**
 - Kendi sunucunuzda en az 70B sınıfı, araç çağırması güçlü bir model kullanın; 27B sınıfı modeller Excel, sunum ve birleştirmede başarısız oldu.

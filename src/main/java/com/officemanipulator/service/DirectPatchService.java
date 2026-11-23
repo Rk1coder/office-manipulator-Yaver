@@ -376,8 +376,7 @@ public class DirectPatchService {
                 XSLFSlide slide = slides.get(Integer.parseInt(id[1]));
                 var picture = (XSLFPictureShape) slide.getShapes().stream().filter(XSLFPictureShape.class::isInstance)
                         .skip(Integer.parseInt(id[3])).findFirst().orElseThrow(() -> new IllegalArgumentException("Bilinmeyen resim: " + entry.getKey()));
-                byte[] png = Files.readAllBytes(entry.getValue());
-                var data = pptx.addPicture(png, org.apache.poi.sl.usermodel.PictureData.PictureType.PNG);
+                var data = addCompact(pptx, Files.readAllBytes(entry.getValue()));
                 var fill = ((org.openxmlformats.schemas.presentationml.x2006.main.CTPicture) picture.getXmlObject()).getBlipFill();
                 fill.getBlip().setEmbed(slide.addRelation(null, XSLFRelation.IMAGES, data).getRelationship().getId());
                 if (fill.isSetSrcRect()) fill.unsetSrcRect();
@@ -390,6 +389,30 @@ public class DirectPatchService {
             }
             try (OutputStream os = Files.newOutputStream(file)) { pptx.write(os); }
         }
+    }
+
+    /**
+     * Generated photos come as 2-3 MB PNGs; without transparency they are stored as JPEG (about a
+     * tenth of the size, no visible loss at slide size). Anything else stays PNG.
+     */
+    private static XSLFPictureData addCompact(XMLSlideShow pptx, byte[] png) throws IOException {
+        var image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(png));
+        if (image == null || image.getColorModel().hasAlpha())
+            return pptx.addPicture(png, org.apache.poi.sl.usermodel.PictureData.PictureType.PNG);
+        var rgb = new java.awt.image.BufferedImage(image.getWidth(), image.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB);
+        rgb.createGraphics().drawImage(image, 0, 0, null);
+        var writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg").next();
+        var params = writer.getDefaultWriteParam();
+        params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+        params.setCompressionQuality(0.85f);
+        var out = new java.io.ByteArrayOutputStream();
+        try (var stream = javax.imageio.ImageIO.createImageOutputStream(out)) {
+            writer.setOutput(stream);
+            writer.write(null, new javax.imageio.IIOImage(rgb, null, null), params);
+        } finally {
+            writer.dispose();
+        }
+        return pptx.addPicture(out.toByteArray(), org.apache.poi.sl.usermodel.PictureData.PictureType.JPEG);
     }
 
     /** A page the template edit adds: a heading plus bullet lines, placed after slide/block {@code after} (0-based) or, when -1, at the end. */
