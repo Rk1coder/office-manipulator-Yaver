@@ -1137,6 +1137,7 @@ body{margin:0}
           <button type="button" role="tab" id="yv-tab-ai" aria-controls="yv-panel-ai" aria-selected="{{ settingsTab_ai }}" data-active="{{ settingsTab_ai }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_ai }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span>{{ settingsTabAiLabel }}</span></button>
           <button type="button" role="tab" id="yv-tab-images" aria-controls="yv-panel-images" aria-selected="{{ settingsTab_images }}" data-active="{{ settingsTab_images }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_images }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>{{ settingsTabImagesLabel }}</span></button>
           <button type="button" role="tab" id="yv-tab-look" aria-controls="yv-panel-look" aria-selected="{{ settingsTab_look }}" data-active="{{ settingsTab_look }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_look }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg><span>{{ settingsTabLookLabel }}</span></button>
+          <button type="button" role="tab" id="yv-tab-brand" aria-controls="yv-panel-brand" aria-selected="{{ settingsTab_brand }}" data-active="{{ settingsTab_brand }}" class="yv-tab" sc-camel-on-click="{{ settingsSelect_brand }}" sc-camel-on-key-down="{{ onSettingsTabKey }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg><span>{{ settingsTabBrandLabel }}</span></button>
         </div>
         <sc-if value="{{ settingsTab_ai }}" hint-placeholder-val="{{ true }}">
         <div role="tabpanel" id="yv-panel-ai" aria-labelledby="yv-tab-ai" class="yv-tab-panel">
@@ -1228,6 +1229,49 @@ body{margin:0}
             <div style="background:var(--wns);border:1px solid var(--wn);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--tx)">{{ settingsGeminiNeedsPriceText }}</div>
           </sc-if>
           <button sc-camel-on-click="{{ saveSettings }}" disabled="{{ settingsBusy }}" style="margin-top:4px;border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px">{{ settingsSaveLabel }}</button>
+          <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
+            <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
+          </sc-if>
+        </div>
+        </sc-if>
+        <sc-if value="{{ settingsTab_brand }}" hint-placeholder-val="{{ false }}">
+        <div role="tabpanel" id="yv-panel-brand" aria-labelledby="yv-tab-brand" class="yv-tab-panel">
+          <div>
+            <p style="margin:0;font-size:14px;font-weight:650">{{ settingsTabBrandTitle }}</p>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--mu);line-height:1.5">{{ settingsTabBrandDesc }}</p>
+          </div>
+          <div style="height:1px;background:var(--ln)"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">{{ brandPrimaryLabel }}
+              <span style="display:flex;gap:6px;align-items:center"><input type="color" aria-label="{{ brandPrimaryLabel }}" value="{{ brandPrimarySwatch }}" sc-camel-on-change="{{ onBrandPrimary }}" style="width:38px;height:38px;padding:2px;border:1px solid var(--ln);border-radius:7px;background:var(--bg);flex:none"><input type="text" aria-label="{{ brandPrimaryLabel }}" value="{{ brandPrimary }}" sc-camel-on-change="{{ onBrandPrimary }}" placeholder="{{ brandColorPlaceholder }}" maxlength="7" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box;font-family:ui-monospace,monospace"></span>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">{{ brandSecondaryLabel }}
+              <span style="display:flex;gap:6px;align-items:center"><input type="color" aria-label="{{ brandSecondaryLabel }}" value="{{ brandSecondarySwatch }}" sc-camel-on-change="{{ onBrandSecondary }}" style="width:38px;height:38px;padding:2px;border:1px solid var(--ln);border-radius:7px;background:var(--bg);flex:none"><input type="text" aria-label="{{ brandSecondaryLabel }}" value="{{ brandSecondary }}" sc-camel-on-change="{{ onBrandSecondary }}" placeholder="{{ brandColorPlaceholder }}" maxlength="7" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box;font-family:ui-monospace,monospace"></span>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">{{ brandAccentLabel }}
+              <span style="display:flex;gap:6px;align-items:center"><input type="color" aria-label="{{ brandAccentLabel }}" value="{{ brandAccentSwatch }}" sc-camel-on-change="{{ onBrandAccent }}" style="width:38px;height:38px;padding:2px;border:1px solid var(--ln);border-radius:7px;background:var(--bg);flex:none"><input type="text" aria-label="{{ brandAccentLabel }}" value="{{ brandAccent }}" sc-camel-on-change="{{ onBrandAccent }}" placeholder="{{ brandColorPlaceholder }}" maxlength="7" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box;font-family:ui-monospace,monospace"></span>
+            </label>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">{{ brandHeadingFontLabel }}
+              <input type="text" value="{{ brandHeadingFont }}" sc-camel-on-change="{{ onBrandHeadingFont }}" placeholder="Montserrat" maxlength="40" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">{{ brandBodyFontLabel }}
+              <input type="text" value="{{ brandBodyFont }}" sc-camel-on-change="{{ onBrandBodyFont }}" placeholder="Open Sans" maxlength="40" style="border:1px solid var(--ln);border-radius:7px;padding:9px 10px;font:inherit;background:var(--bg);color:var(--tx);width:100%;box-sizing:border-box">
+            </label>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:12.5px;font-weight:600">{{ brandLogoLabel }} <span style="color:var(--mu);font-weight:400">{{ brandLogoHint }}</span></span>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <sc-if value="{{ brandHasLogo }}" hint-placeholder-val="{{ false }}">
+                <img src="{{ brandLogo }}" alt="{{ brandLogoLabel }}" style="max-height:44px;max-width:160px;border:1px solid var(--ln);border-radius:6px;padding:4px;background:#fff">
+                <button type="button" sc-camel-on-click="{{ removeBrandLogo }}" style="border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:7px 12px;font:inherit;cursor:pointer;min-height:36px">{{ brandLogoRemoveLabel }}</button>
+              </sc-if>
+              <input type="file" accept="image/png" aria-label="{{ brandLogoLabel }}" sc-camel-on-change="{{ onBrandLogo }}" style="font:inherit;font-size:12.5px;max-width:100%">
+            </div>
+          </div>
+          <span style="font-size:11.5px;color:var(--mu);line-height:1.5">{{ brandHint }}</span>
+          <button sc-camel-on-click="{{ saveBrand }}" disabled="{{ settingsBusy }}" style="margin-top:4px;border:1px solid var(--ln);background:transparent;color:var(--tx);border-radius:7px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px">{{ brandSaveLabel }}</button>
           <sc-if value="{{ settingsHasError }}" hint-placeholder-val="{{ false }}">
             <p role="alert" style="margin:0;color:var(--dg);font-size:12.5px;line-height:1.5">{{ settingsError }}</p>
           </sc-if>
@@ -1542,7 +1586,7 @@ const numOf = x => parseFloat(String(x).replace('−', '-').replace(/\s/g, '').r
 const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 class Component extends DCLogic {
-  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsTab: 'ai', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, guideOpen: false, guideStep: 0, infoIndex: 0, infoHidden: false, infoLeaving: false, infoOpen: null, attachedFile: null, attachedFileName: '', attaching: false };
+  state = { officeEnabled: false, officeFormats: ['DOCX'], officeImporting: false, officeJobId: null, officeRevision: 0, officeEditorKind: 'onlyoffice', realView: false, realPageLoading: false, realPages: 0, realPage: 0, theme: null, lang: null, msg: '', source: '', showSource: false, format: 'AUTO', job: null, now: Date.now(), added: 0, newHistory: [], previewData: null, previewJobId: null, previewLoading: false, toast: '', showLogs: false, w: typeof window !== 'undefined' ? window.innerWidth : 1200, navOpen: false, view: null, viewer: false, vZoom: 1, vSlide: 0, vSheet: 0, sel: [], edits: {}, chat: [], agentInput: '', agentBusy: false, agentOpen: null, flash: [], selTxt: '', planData: null, wysiwyg: { active: false, dirty: false, data: null, saving: false }, versions: [], settingsOpen: false, settingsData: null, settingsSaving: false, settingsVerifying: false, settingsActivated: false, settingsError: '', settingsClaudeKeyInput: '', settingsProviderInput: 'anthropic', settingsModelInput: '', settingsModelCustom: false, settingsTab: 'ai', settingsGeminiKeyInput: '', settingsGeminiEnabledInput: false, brand: { primary: '', secondary: '', accent: '', headingFont: '', bodyFont: '', logo: null }, guideOpen: false, guideStep: 0, infoIndex: 0, infoHidden: false, infoLeaving: false, infoOpen: null, attachedFile: null, attachedFileName: '', attaching: false };
   timers = [];
   epoch = 0;
   previewEpoch = 0;
@@ -1771,6 +1815,7 @@ class Component extends DCLogic {
     if (this.state.settingsVerifying || this.state.settingsSaving) return;
     const patch = { settingsOpen: true, settingsActivated: false, settingsError: '', settingsTab: 'ai' };
     this.setState(patch, () => this.animateSettingsOpen(button));
+    this.loadBrand();
     try {
       const response = await fetch('/api/settings');
       if (!response.ok) throw new Error('Settings unavailable');
@@ -1977,6 +2022,42 @@ class Component extends DCLogic {
     } catch (error) { this.setState({ settingsError: error.message }); }
     finally { this.setState({ settingsSaving: false }); }
   }
+  async loadBrand() {
+    try {
+      const response = await fetch('/api/settings/brand');
+      if (!response.ok) return;
+      const b = await response.json();
+      this.setState({ brand: { primary: b.primary || '', secondary: b.secondary || '', accent: b.accent || '', headingFont: b.headingFont || '', bodyFont: b.bodyFont || '', logo: b.logo || null } });
+    } catch (_) {}
+  }
+  setBrand(field, value) { this.setState({ brand: { ...this.state.brand, [field]: value } }); }
+  brandLogoFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const tr = this.L() === 'tr';
+    if (file.type !== 'image/png') { this.setState({ settingsError: tr ? 'Logo PNG dosyası olmalı.' : 'The logo must be a PNG file.' }); return; }
+    if (file.size > 300 * 1024) { this.setState({ settingsError: tr ? 'Logo en fazla 300 KB olabilir.' : 'The logo can be at most 300 KB.' }); return; }
+    const reader = new FileReader();
+    reader.onload = () => { this.setState({ settingsError: '' }); this.setBrand('logo', reader.result); };
+    reader.readAsDataURL(file);
+  }
+  async saveBrand() {
+    const s = this.state;
+    if (s.settingsSaving || s.settingsVerifying) return;
+    this.setState({ settingsSaving: true, settingsError: '' });
+    try {
+      const b = s.brand;
+      const response = await fetch('/api/settings/brand', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primary: b.primary, secondary: b.secondary, accent: b.accent, headingFont: b.headingFont, bodyFont: b.bodyFont, logo: b.logo || '' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Save failed');
+      this.setState({ brand: { primary: data.primary || '', secondary: data.secondary || '', accent: data.accent || '', headingFont: data.headingFont || '', bodyFont: data.bodyFont || '', logo: data.logo || null } });
+      this.showToast(this.L() === 'en' ? 'Corporate theme saved.' : 'Kurum teması kaydedildi.');
+    } catch (error) { this.setState({ settingsError: error.message }); }
+    finally { this.setState({ settingsSaving: false }); }
+  }
   // Fixed whitelist mirrored from the backend (LlmProvider); labels/help links per provider.
   providerMeta(id) {
     const tr = this.L() === 'tr';
@@ -2055,7 +2136,7 @@ class Component extends DCLogic {
   }
   // Vertical tablist keyboard model (WAI-ARIA): arrows move and focus, Home/End jump.
   settingsTabKey(e) {
-    const order = ['ai', 'images', 'look'], i = order.indexOf(this.state.settingsTab);
+    const order = ['ai', 'images', 'look', 'brand'], i = order.indexOf(this.state.settingsTab);
     const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
     const next = step ? order[(i + step + order.length) % order.length] : e.key === 'Home' ? order[0] : e.key === 'End' ? order[order.length - 1] : null;
     if (!next) return;
@@ -2882,10 +2963,38 @@ class Component extends DCLogic {
         : (L === 'tr' ? 'Ayarlar bölümünde Kontrol et düğmesiyle API anahtarınızı doğrulayın.' : 'Verify your API key with Check in Settings.'),
       settingsOpen: s.settingsOpen,
       openSettings: e => this.openSettings(e && e.currentTarget),
-      settingsTab_ai: s.settingsTab === 'ai', settingsTab_images: s.settingsTab === 'images', settingsTab_look: s.settingsTab === 'look',
+      settingsTab_ai: s.settingsTab === 'ai', settingsTab_images: s.settingsTab === 'images', settingsTab_look: s.settingsTab === 'look', settingsTab_brand: s.settingsTab === 'brand',
       settingsSelect_ai: () => this.setState({ settingsTab: 'ai' }),
       settingsSelect_images: () => this.setState({ settingsTab: 'images' }),
       settingsSelect_look: () => this.setState({ settingsTab: 'look' }),
+      settingsSelect_brand: () => this.setState({ settingsTab: 'brand' }),
+      settingsTabBrandLabel: L === 'tr' ? 'Kurum teması' : 'Corporate theme',
+      settingsTabBrandTitle: L === 'tr' ? 'Kurum teması' : 'Corporate theme',
+      settingsTabBrandDesc: L === 'tr' ? 'Renkler, yazı tipleri ve logo bir kez girilir; üretilen her sunum, Word, PDF ve Excel belgesine uygulanır. Boş bırakılan alan kullanılmaz.' : 'Set colors, fonts and logo once; they are applied to every generated deck, Word, PDF and Excel file. Empty fields are not used.',
+      brandPrimaryLabel: L === 'tr' ? 'Ana renk' : 'Primary color',
+      brandSecondaryLabel: L === 'tr' ? 'İkincil renk' : 'Secondary color',
+      brandAccentLabel: L === 'tr' ? 'Vurgu rengi' : 'Accent color',
+      brandColorPlaceholder: L === 'tr' ? 'ör. 1F4E79' : 'e.g. 1F4E79',
+      brandPrimary: s.brand.primary, brandSecondary: s.brand.secondary, brandAccent: s.brand.accent,
+      brandPrimarySwatch: '#' + (/^[0-9a-fA-F]{6}$/.test(s.brand.primary) ? s.brand.primary : 'FFFFFF'),
+      brandSecondarySwatch: '#' + (/^[0-9a-fA-F]{6}$/.test(s.brand.secondary) ? s.brand.secondary : 'FFFFFF'),
+      brandAccentSwatch: '#' + (/^[0-9a-fA-F]{6}$/.test(s.brand.accent) ? s.brand.accent : 'FFFFFF'),
+      onBrandPrimary: e => this.setBrand('primary', e.target.value.replace('#', '').toUpperCase()),
+      onBrandSecondary: e => this.setBrand('secondary', e.target.value.replace('#', '').toUpperCase()),
+      onBrandAccent: e => this.setBrand('accent', e.target.value.replace('#', '').toUpperCase()),
+      brandHeadingFontLabel: L === 'tr' ? 'Başlık yazı tipi' : 'Heading font',
+      brandBodyFontLabel: L === 'tr' ? 'Metin yazı tipi' : 'Body font',
+      brandHeadingFont: s.brand.headingFont, brandBodyFont: s.brand.bodyFont,
+      onBrandHeadingFont: e => this.setBrand('headingFont', e.target.value),
+      onBrandBodyFont: e => this.setBrand('bodyFont', e.target.value),
+      brandLogoLabel: 'Logo',
+      brandLogoHint: L === 'tr' ? '(PNG, en fazla 300 KB; Excel dışındaki belgelere eklenir)' : '(PNG, up to 300 KB; added to all but Excel files)',
+      brandHasLogo: !!s.brand.logo, brandLogo: s.brand.logo || '',
+      onBrandLogo: e => this.brandLogoFile(e),
+      removeBrandLogo: () => this.setBrand('logo', null),
+      brandLogoRemoveLabel: L === 'tr' ? 'Logoyu kaldır' : 'Remove logo',
+      brandHint: L === 'tr' ? 'Model bu paletin dışında renk kullanırsa belge bir kez paletle yeniden üretilir. Excel tablolarının başlık satırı ana renkle boyanır.' : 'If the model uses colors outside this palette, the document is regenerated once with the palette. Excel header rows use the primary color.',
+      brandSaveLabel: s.settingsSaving ? (L === 'tr' ? 'Kaydediliyor…' : 'Saving…') : (L === 'tr' ? 'Temayı kaydet' : 'Save theme'),
       onSettingsTabKey: e => this.settingsTabKey(e),
       settingsTabOrientation: s.w < 640 ? 'horizontal' : 'vertical',
       settingsTabAiLabel: L === 'tr' ? 'Yapay zekâ' : 'AI provider',
@@ -2907,6 +3016,7 @@ class Component extends DCLogic {
       settingsLangValue: L === 'tr' ? 'Türkçe' : 'English',
       closeSettings: () => this.closeSettings(),
       saveSettings: () => this.saveSettings(),
+      saveBrand: () => this.saveBrand(),
       verifySettings: () => this.verifySettings(),
       settingsSaving: s.settingsSaving,
       settingsBusy: s.settingsSaving || s.settingsVerifying,

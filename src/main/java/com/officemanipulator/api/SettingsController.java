@@ -31,6 +31,8 @@ public class SettingsController {
     private final GeminiImageService geminiImageService;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.officemanipulator.llm.OpenAiCompatibleLlmClient compatibleClient;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.BrandThemeService brandTheme;
 
     public SettingsController(LlmClientProvider claudeClientProvider, AppSettingsService settingsService,
             GeminiImageService geminiImageService) {
@@ -140,6 +142,41 @@ public class SettingsController {
                 claudeClientProvider.invalidateVerification();
             }
             return ResponseEntity.status(failure.status()).body(new VerificationError(failure.getMessage(), currentView()));
+        }
+    }
+
+    /** {@code logo}: a PNG data URL to replace the logo, "" to remove it, null to keep it. */
+    public record BrandRequest(String primary, String secondary, String accent, String headingFont, String bodyFont, String logo) {}
+    public record BrandView(String primary, String secondary, String accent, String headingFont, String bodyFont, String logo) {
+        static BrandView of(com.officemanipulator.config.BrandThemeService.BrandTheme theme) {
+            return new BrandView(theme.primary(), theme.secondary(), theme.accent(), theme.headingFont(), theme.bodyFont(),
+                    theme.logo() == null ? null : "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(theme.logo()));
+        }
+    }
+
+    @GetMapping("/brand")
+    public BrandView brand() {
+        return BrandView.of(brandTheme.current());
+    }
+
+    @PutMapping("/brand")
+    public synchronized ResponseEntity<?> saveBrand(@RequestBody BrandRequest body) {
+        try {
+            byte[] logo = null;
+            if (body.logo() != null) {
+                String data = body.logo().strip();
+                if (!data.isEmpty() && !data.startsWith("data:image/png;base64,"))
+                    return ResponseEntity.badRequest().body(ErrorResponse.of("Logo PNG dosyası olmalı."));
+                try {
+                    logo = data.isEmpty() ? new byte[0] : java.util.Base64.getDecoder().decode(data.substring(data.indexOf(',') + 1));
+                } catch (IllegalArgumentException e) {
+                    return ResponseEntity.badRequest().body(ErrorResponse.of("Logo okunamadı."));
+                }
+            }
+            return ResponseEntity.ok(BrandView.of(brandTheme.save(body.primary(), body.secondary(), body.accent(),
+                    body.headingFont(), body.bodyFont(), logo)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
         }
     }
 

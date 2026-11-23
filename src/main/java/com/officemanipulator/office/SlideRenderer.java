@@ -5,7 +5,7 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -17,36 +17,52 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Renders an in-progress PPTX to one JPEG per slide (ONLYOFFICE → PDF → PDFBox), so the visual
- * review step can show a model what the deck really looks like instead of only its script.
+ * Renders a generated document to one JPEG per page/slide, so the visual review step can show a
+ * model what it really looks like instead of only its script. PDFs render directly with PDFBox;
+ * PPTX and DOCX go through ONLYOFFICE (PDF) first and are reviewable only when it is enabled.
  */
 @Service
-@ConditionalOnProperty(name = "app.office.enabled", havingValue = "true")
 public class SlideRenderer {
     // 72 DPI on a 13.33" × 7.5" slide = 960 × 540: legible for review, cheap in image tokens.
-    private static final float DPI = 72f;
+    private static final float SLIDE_DPI = 72f;
+    // A4 at 90 DPI = 744 × 1052: body text stays readable.
+    private static final float PAGE_DPI = 90f;
     private final DocumentConversionService conversion;
 
-    public SlideRenderer(DocumentConversionService conversion) {
-        this.conversion = conversion;
+    public SlideRenderer(ObjectProvider<DocumentConversionService> conversion) {
+        this.conversion = conversion.getIfAvailable();
+    }
+
+    public boolean canRender(OutputFormat format) {
+        return format == OutputFormat.PDF || conversion != null && (format == OutputFormat.PPTX || format == OutputFormat.DOCX);
     }
 
     public List<byte[]> renderPptx(Path pptx, int maxSlides) throws IOException {
-        Path pdf = Files.createTempFile(pptx.toAbsolutePath().getParent(), "review-", ".pdf");
+        return render(pptx, OutputFormat.PPTX, maxSlides);
+    }
+
+    public List<byte[]> render(Path file, OutputFormat format, int maxPages) throws IOException {
+        if (!canRender(format)) throw new IOException(format + " cannot be rendered here");
+        if (format == OutputFormat.PDF) return pages(file, maxPages, PAGE_DPI);
+        Path pdf = Files.createTempFile(file.toAbsolutePath().getParent(), "review-", ".pdf");
         try {
-            conversion.convert(pptx, pdf, OutputFormat.PPTX, OutputFormat.PDF);
-            try (PDDocument document = Loader.loadPDF(pdf.toFile())) {
-                PDFRenderer renderer = new PDFRenderer(document);
-                List<byte[]> slides = new ArrayList<>();
-                for (int i = 0; i < Math.min(document.getNumberOfPages(), maxSlides); i++) {
-                    var out = new ByteArrayOutputStream();
-                    ImageIO.write(renderer.renderImageWithDPI(i, DPI, ImageType.RGB), "jpg", out);
-                    slides.add(out.toByteArray());
-                }
-                return slides;
-            }
+            conversion.convert(file, pdf, format, OutputFormat.PDF);
+            return pages(pdf, maxPages, format == OutputFormat.PPTX ? SLIDE_DPI : PAGE_DPI);
         } finally {
             Files.deleteIfExists(pdf);
+        }
+    }
+
+    private static List<byte[]> pages(Path pdf, int maxPages, float dpi) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf.toFile())) {
+            PDFRenderer renderer = new PDFRenderer(document);
+            List<byte[]> pages = new ArrayList<>();
+            for (int i = 0; i < Math.min(document.getNumberOfPages(), maxPages); i++) {
+                var out = new ByteArrayOutputStream();
+                ImageIO.write(renderer.renderImageWithDPI(i, dpi, ImageType.RGB), "jpg", out);
+                pages.add(out.toByteArray());
+            }
+            return pages;
         }
     }
 }

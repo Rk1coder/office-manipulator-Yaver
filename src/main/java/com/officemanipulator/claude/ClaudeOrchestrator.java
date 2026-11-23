@@ -64,6 +64,8 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PresentationSkills skills;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.BrandThemeService brand;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.officemanipulator.preview.PreviewService previewService;
     private static final int MAX_LISTED_GAPS = 60;
     private String pricingModel;
@@ -215,6 +217,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         }
         appendComputedFacts(content, job);
         appendDesignDirection(content, job);
+        appendBrandTheme(content, job);
         List<Message> messages = new ArrayList<>(List.of(Message.user(content.toString())));
         long inputTokens = 0, outputTokens = 0;
         for (int attempt = 0; attempt < 2; attempt++) {
@@ -222,6 +225,13 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                     List.of(toolRegistry.planTool(job.getFormat().name())), "submit_plan", maxTokens));
             inputTokens += response.inputTokens(); outputTokens += response.outputTokens();
             ToolCall plan = response.firstToolCall("submit_plan");
+            if (plan == null && attempt == 0) {
+                // Seen with gpt-oss: an answer without the tool call; one reminder usually gets the plan.
+                log.info("Job {}: plan answer had no submit_plan call, asking once more", job.getId());
+                messages.add(Message.assistant(response));
+                messages.add(Message.user("Respond only by calling submit_plan with the COMPLETE plan — no plain text."));
+                continue;
+            }
             if (plan == null) throw new IllegalStateException("Model tamamlanmış bir plan döndürmedi; çıktı sınırı aşılmış olabilir.");
             try {
                 var tree = plan.input().deepCopy();
@@ -264,6 +274,8 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         boolean review = reviewable(job) && reviewRounds > 0;
         // One rewrite when source figures went missing; the version before it ships if the rewrite fails.
         boolean coverageChecked = false;
+        boolean remindedAfterSuccess = false;
+        boolean qualityChecked = false; // one rewrite for measurable defects: off-palette colors, overlapping or off-page text
         List<String> gapsBefore = null; // figures missing before the coverage rewrite; null once it has been judged
         Path beforeCoverage = outputPath.resolveSibling("covered-" + outputPath.getFileName());
         // The format fixes the tool; forcing it stops models (notably Gemini) from answering with the
@@ -283,7 +295,18 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
             ToolCall toolUse = response.firstToolCall(null);
             if (toolUse == null) {
-                if (succeeded) break; // a reviewed deck already exists; keep it rather than fail the job
+                if (succeeded) {
+                    // A document already exists: one reminder to apply the feedback, then keep what we have.
+                    if (remindedAfterSuccess) {
+                        log.info("Job {} turn {}: model answered the feedback without a tool call again; keeping the existing version", job.getId(), turn);
+                        break;
+                    }
+                    remindedAfterSuccess = true;
+                    log.info("Job {} turn {}: model answered the feedback without a tool call; reminding it once", job.getId(), turn);
+                    messages.add(Message.user("Apply the feedback above: respond only by calling the " + forced
+                            + " tool with the COMPLETE corrected script."));
+                    continue;
+                }
                 String text = response.text() == null ? "(no content)" : response.text().strip();
                 lastError = "Model did not call a tool: " + (text.length() > 200 ? text.substring(0, 200) + "…" : text);
                 lastFailed = true;
@@ -300,12 +323,15 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
             String toolResult;
             try {
-                toolResult = dispatcher.dispatch(toolUse.name(), inputJson, outputPath, imageEnvVars(job));
+                toolResult = dispatcher.dispatch(toolUse.name(), inputJson, outputPath, imageEnvVars(job, outputPath));
                 com.officemanipulator.validator.GenerationRequirements.validate(job, outputPath);
                 if (toolUse.name().equals("create_presentation"))
                     com.officemanipulator.validator.PresentationDesignValidator.validate(job, inputJson);
             } catch (Exception e) {
                 toolResult = "ERROR: " + e.getMessage();
+                if (String.valueOf(e.getMessage()).contains("SyntaxError"))
+                    toolResult += "\nThe script does not parse (unbalanced brackets or parentheses). Do not patch the same nested expression again:"
+                            + " rewrite it with one small helper function per section/table that returns an array of elements, and count the closing brackets.";
                 log.warn("Job {} tool error on turn {}: {}", job.getId(), turn, e.getMessage());
             }
 
@@ -334,6 +360,11 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                     java.nio.file.Files.copy(beforeCoverage, outputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 }
                 gapsBefore = null;
+            }
+            if (!qualityChecked) {
+                qualityChecked = true;
+                Message defects = qualityFeedback(job, toolUse.name(), inputJson, outputPath);
+                if (defects != null) { messages.add(defects); continue; }
             }
             if (!review) break;
             long[] reviewUsage = new long[2];
@@ -407,7 +438,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     }
 
     private boolean reviewable(Job job) {
-        return renderer != null && isPresentation(job);
+        return renderer != null && job.getFormat() != null && renderer.canRender(job.getFormat().generationFormat());
     }
 
     /**
@@ -421,13 +452,15 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
 
     private SlideReview reviewSlides(Job job, Path deck, long[] usage) {
         try {
-            List<LlmClient.Image> slides = renderer.renderPptx(deck, MAX_REVIEW_SLIDES).stream()
+            boolean deckJob = isPresentation(job);
+            String unit = deckJob ? "slide" : "page";
+            List<LlmClient.Image> slides = renderer.render(deck, job.getFormat().generationFormat(), MAX_REVIEW_SLIDES).stream()
                     .map(bytes -> new LlmClient.Image("image/jpeg", java.util.Base64.getEncoder().encodeToString(bytes))).toList();
             if (slides.isEmpty()) return null;
             StringBuilder context = new StringBuilder("REQUEST:\n").append(job.getRequest());
             if (job.getPlanJson() != null) context.append("\n\nAPPROVED PLAN:\n").append(job.getPlanJson());
-            context.append("\n\nThe ").append(slides.size()).append(" images above are the rendered slides, in order.");
-            String system = SystemPrompts.SLIDE_REVIEW + (skills == null ? "" : skills.reviewChecklist());
+            context.append("\n\nThe ").append(slides.size()).append(" images above are the rendered ").append(unit).append("s, in order.");
+            String system = deckJob ? SystemPrompts.SLIDE_REVIEW + (skills == null ? "" : skills.reviewChecklist()) : SystemPrompts.DOCUMENT_REVIEW;
             Response review = billedRequest(job, new LlmClient.Request(system, List.of(Message.user(context.toString(), slides)),
                     List.of(toolRegistry.slideReviewTool()), "submit_slide_review", 4000), true);
             usage[0] += review.inputTokens();
@@ -440,24 +473,29 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
                 String severity = issue.path("severity").asText("low");
                 if (severity.equals("low")) continue;
                 score += severity.equals("high") ? 3 : 1;
-                issues.add("- Slide " + issue.path("slide").asInt() + " [" + severity + "]: " + issue.path("problem").asText()
+                issues.add("- " + (deckJob ? "Slide " : "Page ") + issue.path("slide").asInt() + " [" + severity + "]: " + issue.path("problem").asText()
                         + " → FIX: " + issue.path("fix").asText());
             }
             log.info("Job {} visual review: approved={}, blocking issues={}, score={}", job.getId(),
                     verdict.input().path("approved").asBoolean(), issues.size(), score);
             if (issues.isEmpty()) return new SlideReview(0, null);
             boolean generatorSees = reviewModel.isBlank();
-            String feedback = """
-                    VISUAL REVIEW — %s
-                    An art director found these defects:
-                    %s
-
-                    Call create_presentation again with the COMPLETE corrected script. Fix every listed defect, keep
+            String tool = generationTool(job.getFormat());
+            String keep = deckJob ? """
                     everything that already works (content, order, palette, layouts), and keep the // LAYOUT: comments.
                     Keep every generated image (process.env.IMG_<n>) on its slide. Fix empty areas by enlarging the real
-                    content (type, cards, image, chart) — never by deleting content or images.""".formatted(generatorSees
-                    ? "the images above are how your previous script actually renders (image 1 = slide 1)."
-                    : "your previous script was rendered and inspected slide by slide.", String.join("\n", issues));
+                    content (type, cards, image, chart) — never by deleting content or images.""" : """
+                    everything that already works (all content, order, palette, headings, tables and images). Fix layout
+                    problems by adjusting sizes, spacing, column widths and page breaks — never by deleting content.""";
+            String feedback = """
+                    VISUAL REVIEW — %s
+                    A reviewer found these defects:
+                    %s
+
+                    Call %s again with the COMPLETE corrected script. Fix every listed defect, keep
+                    %s""".formatted(generatorSees
+                    ? "the images above are how your previous script actually renders (image 1 = " + unit + " 1)."
+                    : "your previous script was rendered and inspected " + unit + " by " + unit + ".", String.join("\n", issues), tool, keep.strip());
             // A text-only generator rejects image input, so it gets the defect list alone.
             return new SlideReview(score, generatorSees ? Message.user(feedback, slides) : Message.user(feedback));
         } catch (Exception e) {
@@ -480,6 +518,7 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
         if (job.getPlanJson() != null) content.append("\n\nAPPROVED PLAN — follow this structure and content:\n").append(job.getPlanJson());
         appendComputedFacts(content, job);
         appendDesignDirection(content, job);
+        appendBrandTheme(content, job);
         appendImageInstructions(content, job);
         return Message.user(content.toString());
     }
@@ -535,16 +574,120 @@ public class ClaudeOrchestrator implements AgentOrchestrator {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, String> imageEnvVars(Job job) {
-        if (job.getImagePathsJson() == null || job.getImagePathsJson().isBlank()) return Map.of();
-        try {
-            Map<String, String> imagePaths = objectMapper.readValue(job.getImagePathsJson(), Map.class);
-            Map<String, String> env = new java.util.HashMap<>();
-            imagePaths.forEach((index, path) -> env.put("IMG_" + index, path));
-            return env;
-        } catch (Exception e) {
-            return Map.of();
+    private Map<String, String> imageEnvVars(Job job, Path outputPath) {
+        Map<String, String> env = new java.util.HashMap<>();
+        if (job.getImagePathsJson() != null && !job.getImagePathsJson().isBlank()) {
+            try {
+                Map<String, String> imagePaths = objectMapper.readValue(job.getImagePathsJson(), Map.class);
+                imagePaths.forEach((index, path) -> env.put("IMG_" + index, path));
+            } catch (Exception e) {
+                log.warn("Job {} had unparsable imagePathsJson: {}", job.getId(), e.getMessage());
+            }
         }
+        var theme = brandTheme(job);
+        if (theme != null && theme.logo() != null && LOGO_FORMATS.contains(job.getFormat().generationFormat())) {
+            try {
+                Path logo = outputPath.resolveSibling("brand-logo.png");
+                java.nio.file.Files.createDirectories(logo.getParent()); // first attempt: the job folder may not exist yet
+                java.nio.file.Files.write(logo, theme.logo());
+                env.put("IMG_LOGO", logo.toString());
+            } catch (java.io.IOException e) {
+                log.warn("Job {}: logo not staged: {}", job.getId(), e.getMessage());
+            }
+        }
+        return env;
+    }
+
+    private static final java.util.Set<com.officemanipulator.domain.OutputFormat> BRAND_FORMATS = java.util.EnumSet.of(
+            com.officemanipulator.domain.OutputFormat.PPTX, com.officemanipulator.domain.OutputFormat.DOCX,
+            com.officemanipulator.domain.OutputFormat.PDF, com.officemanipulator.domain.OutputFormat.XLSX);
+    private static final java.util.Set<com.officemanipulator.domain.OutputFormat> LOGO_FORMATS = java.util.EnumSet.of(
+            com.officemanipulator.domain.OutputFormat.PPTX, com.officemanipulator.domain.OutputFormat.DOCX,
+            com.officemanipulator.domain.OutputFormat.PDF);
+
+    /** The corporate theme for a styled format, or null when none is set or the format has no styling. */
+    private com.officemanipulator.config.BrandThemeService.BrandTheme brandTheme(Job job) {
+        if (brand == null || job.getFormat() == null || !BRAND_FORMATS.contains(job.getFormat().generationFormat())) return null;
+        var theme = brand.current();
+        return theme.isEmpty() ? null : theme;
+    }
+
+    private void appendBrandTheme(StringBuilder content, Job job) {
+        var theme = brandTheme(job);
+        if (theme == null) return;
+        var format = job.getFormat().generationFormat();
+        content.append("\n\nCORPORATE THEME — mandatory; it overrides any palette or font in the plan or design direction:\n");
+        if (!theme.palette().isEmpty()) {
+            content.append("- Colors (hex): ");
+            if (theme.primary() != null) content.append("primary ").append(theme.primary()).append("  ");
+            if (theme.secondary() != null) content.append("secondary ").append(theme.secondary()).append("  ");
+            if (theme.accent() != null) content.append("accent ").append(theme.accent());
+            content.append("\n  Use only these colors, lighter/darker tints of them, white, black and grays — no other hues.\n");
+        }
+        if (format != com.officemanipulator.domain.OutputFormat.PDF) {
+            if (theme.headingFont() != null) content.append("- Heading font: ").append(theme.headingFont()).append('\n');
+            if (theme.bodyFont() != null) content.append("- Body font: ").append(theme.bodyFont()).append('\n');
+        }
+        if (theme.logo() != null && LOGO_FORMATS.contains(format)) {
+            String ratio = "";
+            try {
+                var image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(theme.logo()));
+                if (image != null) ratio = String.format(java.util.Locale.ROOT, ", width:height = %.2f", (double) image.getWidth() / image.getHeight());
+            } catch (java.io.IOException ignored) {
+                // unreadable logo: the script still gets the path
+            }
+            content.append("- Logo: PNG at process.env.IMG_LOGO").append(ratio).append(" — keep this ratio, never stretch it. ").append(switch (format) {
+                case PPTX -> "Place it small (about 0.45in high) in the top-right corner of the cover and of every content slide, clear of the title: slide.addImage({ path: process.env.IMG_LOGO, x, y, w, h }).";
+                case DOCX -> "Put it right-aligned in the default page header, about 110px wide: headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new ImageRun({ data: require('fs').readFileSync(process.env.IMG_LOGO), transformation: { width, height }, type: 'png' })] })] }) }.";
+                default -> "Embed it ONCE after creating the document: const logo = await pdfDoc.embedPng(require('fs').readFileSync(process.env.IMG_LOGO)); const logoDims = logo.scaleToFit(70, 36); "
+                        + "then on every page: page.drawImage(logo, { x: width - 50 - logoDims.width, y: height - 20 - logoDims.height, width: logoDims.width, height: logoDims.height }); "
+                        + "start the page content (title included) below the logo so nothing overlaps it.";
+            }).append('\n');
+        }
+    }
+
+    /** A rewrite request for defects that are measured, not judged: colors outside the corporate palette,
+     * text boxes stacked on each other (PPTX), text running off the page (PDF), formula errors and a shifted
+     * header (XLSX). Null when there are none. */
+    private Message qualityFeedback(Job job, String tool, String inputJson, Path outputPath) {
+        var problems = new ArrayList<String>();
+        var theme = brandTheme(job);
+        if (theme != null && !theme.palette().isEmpty()) {
+            try {
+                String script = objectMapper.readTree(inputJson).path("script").asText("");
+                List<String> off = com.officemanipulator.validator.BrandPalette.offPalette(script, theme.palette());
+                if (!off.isEmpty()) problems.add("- CORPORATE THEME: your script uses colors outside the corporate palette: "
+                        + String.join(", ", off) + ". Replace each with the closest palette color (" + String.join(", ", theme.palette())
+                        + "), a lighter/darker tint of one, or a neutral gray.");
+            } catch (Exception e) {
+                log.warn("Job {}: palette not checked: {}", job.getId(), e.getMessage());
+            }
+        }
+        try {
+            List<String> layout = switch (job.getFormat().generationFormat()) {
+                case PPTX -> {
+                    var found = new ArrayList<>(com.officemanipulator.validator.LayoutCheck.overlappingText(outputPath));
+                    found.addAll(com.officemanipulator.validator.LayoutCheck.invisibleText(outputPath));
+                    yield found;
+                }
+                case PDF -> com.officemanipulator.validator.LayoutCheck.textOffPage(outputPath);
+                case XLSX -> com.officemanipulator.validator.LayoutCheck.spreadsheetDefects(outputPath);
+                default -> List.of();
+            };
+            for (String finding : layout) problems.add("- LAYOUT: " + finding + ".");
+            if (!layout.isEmpty() && job.getFormat().generationFormat() != com.officemanipulator.domain.OutputFormat.XLSX) problems.add(isPresentation(job)
+                    ? "  For overlaps: move or narrow the listed boxes so no text overlaps another text box or the logo; put a list in ONE text box as an array of bullet paragraphs."
+                    : "  Wrap every paragraph and table cell to the content width with the predefined wrapText(text, font, size, maxWidth) helper before drawing it.");
+        } catch (Exception e) {
+            log.warn("Job {}: layout not checked: {}", job.getId(), e.getMessage());
+        }
+        if (problems.isEmpty()) return null;
+        log.info("Job {}: measurable defects, asking for one rewrite: {}", job.getId(), problems);
+        return Message.user("""
+                AUTOMATIC CHECK — your document has these measurable defects:
+                %s
+                Call %s again with the COMPLETE corrected script. Fix every listed defect and keep everything else exactly as it is."""
+                .formatted(String.join("\n", problems), tool));
     }
 
     private Response billedRequest(Job job, LlmClient.Request request) {
