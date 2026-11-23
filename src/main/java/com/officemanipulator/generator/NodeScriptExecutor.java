@@ -105,7 +105,7 @@ public class NodeScriptExecutor {
             throws IOException {
         Map<String, String> environment = new HashMap<>();
         for (var entry : extraEnv.entrySet()) {
-            if (!entry.getKey().matches("IMG_[0-9]+")) {
+            if (!entry.getKey().matches("IMG_([0-9]+|LOGO)")) {
                 throw new IOException("Unsupported generator environment key: " + entry.getKey());
             }
             Path image = Path.of(entry.getValue()).toRealPath();

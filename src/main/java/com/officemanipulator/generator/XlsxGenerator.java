@@ -11,6 +11,8 @@ import java.nio.file.*;
 @Component
 public class XlsxGenerator {
     private final NodeScriptExecutor executor;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.officemanipulator.config.BrandThemeService brand;
     public XlsxGenerator(NodeScriptExecutor executor) { this.executor = executor; }
 
     public void generate(CreateXlsxParams params, Path outputPath) throws IOException, InterruptedException {
@@ -52,6 +54,7 @@ public class XlsxGenerator {
                     series.setTitle(spec.title(),null); chart.plot(data); offset += 18;
                 }
             }
+            XlsxTheme.apply(wb, brand == null ? null : brand.current().primary());
             for (var sheet : wb) {
                 sheet.setFitToPage(true);
                 sheet.getPrintSetup().setFitWidth((short)1);

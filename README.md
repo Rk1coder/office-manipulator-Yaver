@@ -60,11 +60,19 @@ curl -H "$H" -OJ $B/api/files/<jobId>/download
 | `GET /api/files/{id}/download`, `…/preview`, `…/preview/images` | İndirme ve önizleme |
 | `POST /api/office/import`, `GET\|POST /api/office/text/{jobId}` | Mevcut belgeyi içe aktarma, metnini okuma/yazma |
 | `GET\|POST /api/settings`, `POST /api/settings/verify` | LLM sağlayıcı/anahtar ayarları |
+| `GET\|PUT /api/settings/brand` | Kurum teması: renkler, yazı tipleri, logo |
 | `GET /api/budget` | Harcanan / kalan bütçe |
 
 **Tarayıcıdan çağrı (CORS):** Sunucudan sunucuya çağrılarda bir şey gerekmez. Başka bir alan adındaki web uygulaması tarayıcıdan çağıracaksa o adresi `YAVER_CORS_ORIGINS=https://portal.ornek.com` şeklinde ekleyin; listede olmayan kaynaklardan gelen tarayıcı istekleri `403` alır.
 
 > **Güvenlik:** API anahtarı düz HTTP üzerinden açık metin gider. Uygulamayı internete ya da güvenilmeyen bir ağa açacaksanız önüne HTTPS sonlandıran bir ters vekil (nginx, Caddy, Traefik) koyun ve `.env`'de `API_BIND_ADDRESS=127.0.0.1` yapın. `/internal/...` uç noktaları her durumda yalnızca konteynerin kendisinden erişilebilir.
+
+### Kurum teması, Excel biçimlendirme ve otomatik kalite denetimi
+
+- **Kurum teması** (`GET|PUT /api/settings/brand`): ana/ikincil/vurgu rengi, başlık ve metin yazı tipi ile PNG logo (en fazla 300 KB) bir kez girilir. Sunum, Word, PDF ve Excel üretiminde planlama ve üretim talimatına eklenir; logo sunumda köşeye, Word'de sayfa başlığına, PDF'te her sayfanın üst kenarına konur. Model paletin dışında bir renk kullanırsa (tonlar ve griler serbest) belge bir kez paletle yeniden üretilir.
+- **Excel tema motoru**: üretilen her XLSX'e modelden bağımsız uygulanır. Başlık satırı ana renkle boyanır ve dondurulur, filtre eklenir, satırlar zebra desenli olur, 10.000 ve üzeri tam sayılar `#,##0`, ondalıklar `#,##0.00`, tarihler `gg.aa.yyyy` biçimini alır, sütun genişlikleri içeriğe göre ayarlanır. Yıl, kod ve no sütunlarına dokunulmaz.
+- **Ölçülebilir kusur denetimi** (modelden bağımsız): sunumda üst üste binen metin kutuları, metnin üstüne çizilen resim veya logo ve açık zemin üstünde açık renk yazı; PDF'te sayfadan taşan metin; Excel'de hata veren formüller (`#DIV/0!`, `#REF!`…) ve verisiyle aynı sütunda olmayan başlık satırı bulunursa belge bir kez düzeltilerek yeniden üretilir. Üretim sonrası otomatik onarımlar: punto sanılan satır aralığı (1,15 pt → %115), metin olarak yazılmış `**`, Word'de iki kez yazılan başlıklar, yalnızca `color` verilmiş hücre dolgusu (açık renk yazının arkasında), sayfayı kaplayan dev üstbilgi logosu (en fazla 0,6" yüksekliğe indirilir) ve madde işaretli paragrafa ayrıca yazılmış `•`. Bu onarımlardan biri dosyayı okuyamazsa iş başarısız olmaz, belge olduğu gibi teslim edilir. PDF betiklerinde satır kaydırma için hazır `wrapText` yardımcısı bulunur.
+- **Görsel inceleme**: sunumlardaki render → inceleme → düzeltme döngüsü artık PDF (ONLYOFFICE gerekmeden) ve Word (ONLYOFFICE açıkken) belgelerinde de çalışır. Sayfadan taşan tablo, sayfa sonunda yalnız kalan başlık ve tutarsız stil gibi kusurlar düzeltilir.
 
 ### İstek başına LLM anahtarı
 

@@ -59,7 +59,8 @@ class VisualReviewLoopTest {
         when(provider.selectionFor(any())).thenReturn(new LlmSelection(LlmProvider.ANTHROPIC, "k", "test", false));
         when(provider.client(LlmProvider.ANTHROPIC)).thenReturn(llm);
         var renderer = mock(SlideRenderer.class);
-        when(renderer.renderPptx(any(), anyInt())).thenReturn(List.of(new byte[]{1, 2, 3}, new byte[]{4, 5, 6}));
+        when(renderer.canRender(any())).thenReturn(true);
+        when(renderer.render(any(), any(), anyInt())).thenReturn(List.of(new byte[]{1, 2, 3}, new byte[]{4, 5, 6}));
         var ai = new ClaudeOrchestrator(provider, new ToolRegistry(), dispatcher, new FileStorageService(tmp.toString()), mapper);
         ReflectionTestUtils.setField(ai, "maxTokens", 1000L);
         ReflectionTestUtils.setField(ai, "maxToolTurns", maxToolTurns);
@@ -99,6 +100,59 @@ class VisualReviewLoopTest {
         assertTrue(Files.exists(result.outputPath()));
         assertFalse(Files.exists(result.outputPath().resolveSibling("best-output.pptx")));
         assertEquals(4 * 10, result.inputTokens());
+    }
+
+    @Test void pdfPagesAreReviewedAsADocumentAndTheRewriteUsesCreatePdf() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(call("create_pdf", "{\"script\":\"v1\"}"));
+        llm.answers.add(call("submit_slide_review", "{\"approved\":false,\"summary\":\"s\",\"issues\":[{\"slide\":2,\"severity\":\"high\",\"problem\":\"table runs past the margin\",\"fix\":\"narrow it\"}]}"));
+        llm.answers.add(call("create_pdf", "{\"script\":\"v2\"}"));
+        llm.answers.add(call("submit_slide_review", "{\"approved\":true,\"summary\":\"ok\",\"issues\":[]}"));
+        var dispatcher = mock(ToolDispatcher.class);
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { Files.createDirectories(((Path) a.getArgument(2)).getParent()); Files.writeString(a.getArgument(2), "%PDF"); return "OK"; });
+        Job job = deckJob(); job.setFormat(OutputFormat.PDF);
+
+        orchestrator(llm, dispatcher, 2).run(job);
+
+        assertTrue(llm.requests.get(1).system().contains("document designer"), "documents get the document review prompt");
+        assertFalse(llm.requests.get(1).system().contains("Visual review checklist"), "no slide checklist for documents");
+        String feedback = llm.requests.get(2).messages().getLast().text();
+        assertTrue(feedback.contains("- Page 2 [high]: table runs past the margin"));
+        assertTrue(feedback.contains("Call create_pdf again"));
+        assertFalse(feedback.contains("LAYOUT"));
+    }
+
+    @Test void offPaletteColorsGetOneRewriteRequest() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(call("create_presentation", "{\"script\":\"slide.addText('a', { color: '2E7D32' })\"}"));
+        llm.answers.add(call("create_presentation", "{\"script\":\"slide.addText('a', { color: '1F4E79' })\"}"));
+        llm.answers.add(call("submit_slide_review", "{\"approved\":true,\"summary\":\"ok\",\"issues\":[]}"));
+        var dispatcher = mock(ToolDispatcher.class);
+        when(dispatcher.dispatch(anyString(), anyString(), any(), anyMap())).thenAnswer(a -> { writeDeck(a.getArgument(2), 1); return "OK"; });
+        var ai = orchestrator(llm, dispatcher, 2);
+        var brand = mock(com.officemanipulator.config.BrandThemeService.class);
+        when(brand.current()).thenReturn(new com.officemanipulator.config.BrandThemeService.BrandTheme("1F4E79", null, null, "Montserrat", null, null));
+        ReflectionTestUtils.setField(ai, "brand", brand);
+
+        ai.run(deckJob());
+
+        assertTrue(llm.requests.get(0).messages().getFirst().text().contains("CORPORATE THEME"), "the theme is in the generation prompt");
+        assertTrue(llm.requests.get(0).messages().getFirst().text().contains("Heading font: Montserrat"));
+        String feedback = llm.requests.get(1).messages().getLast().text();
+        assertTrue(feedback.contains("outside the corporate palette: 2E7D32"));
+        assertEquals("submit_slide_review", llm.requests.get(2).forcedTool(), "the on-palette rewrite goes on to review");
+    }
+
+    @Test void aPlanAnswerWithoutTheToolCallGetsOneReminder() throws Exception {
+        var llm = new ScriptedLlm();
+        llm.answers.add(new LlmClient.Response("İşte plan: ...", List.of(), 5, 5));
+        llm.answers.add(call("submit_plan", "{\"title\":\"Siber güvenlik\",\"outline\":[{\"title\":\"Özet\",\"content\":\"Metin\"}]}"));
+
+        var plan = orchestrator(llm, mock(ToolDispatcher.class), 2).runPlan(deckJob());
+
+        assertEquals("Siber güvenlik", mapper.readTree(plan.planJson()).path("title").asText());
+        assertTrue(llm.requests.get(1).messages().getLast().text().contains("submit_plan"));
+        assertEquals(15, plan.inputTokens(), "both calls are billed");
     }
 
     @Test void aSeparateReviewModelInspectsTheSlidesAndTheGeneratorGetsTextOnly() throws Exception {

@@ -65,6 +65,28 @@ class GeneratorTest {
     }
 
     @Test
+    void pdf_scripts_get_a_wrapText_helper() throws Exception {
+        CreatePdfParams p = new CreatePdfParams();
+        p.setScript("""
+                const { PDFDocument, StandardFonts } = require('pdf-lib');
+                const fs = require('fs');
+                (async () => {
+                  const pdfDoc = await PDFDocument.create();
+                  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                  const lines = wrapText('one two three four five six seven eight nine ten', font, 12, 60);
+                  if (lines.length < 3 || lines.some(l => font.widthOfTextAtSize(l, 12) > 60)) throw new Error('bad wrap ' + JSON.stringify(lines));
+                  pdfDoc.addPage().drawText('**VPN** zorunlu', { x: 50, y: 700, size: 12, font });
+                  fs.writeFileSync(process.env.OUTPUT_PATH, await pdfDoc.save());
+                })();
+                """);
+        Path out = tempDir.resolve("wrap.pdf");
+        pdfGen.generate(p, out);
+        try (var pdf = org.apache.pdfbox.Loader.loadPDF(out.toFile())) {
+            assertEquals("VPN zorunlu", new org.apache.pdfbox.text.PDFTextStripper().getText(pdf).strip(), "markdown bold markers are not drawn");
+        }
+    }
+
+    @Test
     void pdf_produces_valid_file() throws Exception {
         CreatePdfParams p = new CreatePdfParams();
         p.setScript("""
