@@ -54,9 +54,9 @@ curl -H "$H" -OJ $B/api/files/<jobId>/download
 | `GET /api/jobs`, `GET /api/jobs/{id}` | İş listesi / tek iş durumu |
 | `GET /api/jobs/{id}/events` | Durum değişikliklerini SSE olarak akıtır |
 | `GET /api/jobs/{id}/plan`, `POST …/plan/confirm` | Üretim planını görme / onaylama |
-| `POST /api/jobs/{id}/edit`, `…/edit-fragment` | Hazır belgeyi doğal dille düzenleme |
-| `PATCH /api/jobs/{id}/content` | İçeriği doğrudan güncelleme |
-| `POST /api/jobs/{id}/convert`, `…/cancel` | Başka biçime dönüştürme / iptal |
+| `POST /api/edit` | Tek düzenleme ucu. Belge `jobId` (JSON) ya da yüklenen `file` (multipart). `instruction`: doğal dille düzenleme (şablon korunur; başa/araya/sona sayfa ekleme, konu değiştirme, sunum resimlerini yenileme). `fragment`+`instruction`: tek parça. `content`: içeriği doğrudan güncelleme. Yalnız `format`: başka biçime dönüştürme |
+| `POST /api/jobs/{id}/cancel` | İşi iptal etme |
+| `POST /api/jobs/{id}/edit`, `…/edit-fragment`, `…/convert`, `PATCH …/content` | Eskiyen yollar: `/api/edit` ile aynı işi yapar; yanıtta `Deprecation`, `Sunset` (1 Haziran 2027) ve `Link` başlıkları döner |
 | `GET /api/files/{id}/download`, `…/preview`, `…/preview/images` | İndirme ve önizleme |
 | `POST /api/office/import`, `GET\|POST /api/office/text/{jobId}` | Mevcut belgeyi içe aktarma, metnini okuma/yazma |
 | `GET\|POST /api/settings`, `POST /api/settings/verify` | LLM sağlayıcı/anahtar ayarları |
